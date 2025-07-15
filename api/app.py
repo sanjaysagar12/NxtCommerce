@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 from pydantic import BaseModel, Field
 from typing import Optional, Union
 import os
@@ -11,6 +12,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'model-engine'))
 from language import audio_to_text, text_to_audio
 
 app = Flask(__name__)
+
+# Enable CORS for all routes
+CORS(app)
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
