@@ -3,7 +3,7 @@ import requests
 class AgenticAPI:
     """Handles all API-related operations: authentication, category/attribute fetching, product posting, and searching."""
 
-    def __init__(self, base_url="http://localhost:3000"):
+    def __init__(self, base_url="https://api-ecommerce.sanjaysagar.com"):
         self.base_url = base_url
 
     def authenticate_user(self, email="sanjay@gmail.com", password="password"):
