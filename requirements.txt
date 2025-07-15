@@ -7,3 +7,8 @@ pydub==0.25.1
 requests==2.31.0
 flask_cors==4.0.0
 googletrans==4.0.0rc1
+langchain
+langchain-openai
+langchain-core
+python-dotenv
+requests
