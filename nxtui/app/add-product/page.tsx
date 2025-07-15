@@ -296,6 +296,7 @@ export default function AddProductPage() {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [error, setError] = useState("");
   const [showJson, setShowJson] = useState(false);
   
@@ -320,12 +321,48 @@ export default function AddProductPage() {
       return;
     }
     setLoading(true);
+    
     try {
+      // First, translate the text to English if it's not already in English
+      let translatedText = prompt;
+      
+      // Check if the text needs translation (if it's not already in English)
+      if (selectedLanguage !== 'en-US' && selectedLanguage !== 'en-GB') {
+        setTranslating(true);
+        try {
+          const translateResponse = await fetch("http://localhost:5000/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: prompt,
+              target_language: "en",
+              source_language: "auto"
+            }),
+          });
+          
+          const translateData = await translateResponse.json();
+          
+          if (translateData.success && translateData.translated_text) {
+            translatedText = translateData.translated_text;
+            console.log(`Original (${selectedLanguage}): ${prompt}`);
+            console.log(`Translated (en): ${translatedText}`);
+          } else {
+            console.warn("Translation failed, using original text:", translateData.message);
+          }
+        } catch (translateError) {
+          console.warn("Translation request failed, using original text:", translateError);
+        } finally {
+          setTranslating(false);
+        }
+      }
+      console.log(`Final text to process: ${translatedText}`);
+      // Send the translated (or original) text to add-product endpoint
       const res = await fetch("http://localhost:5000/add-product", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_input: prompt }),
+        body: JSON.stringify({ user_input: translatedText }),
       });
+      
       const data = await res.json();
       if (!data.success) {
         setError(data.message || "Failed to add product.");
@@ -468,6 +505,11 @@ export default function AddProductPage() {
                   </select>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Selected: {languages.find(l => l.code === selectedLanguage)?.name} ({selectedLanguage})
+                    {selectedLanguage !== 'en-US' && selectedLanguage !== 'en-GB' && (
+                      <span className="block text-blue-600 dark:text-blue-400 mt-1">
+                        ℹ️ Text will be automatically translated to English for processing
+                      </span>
+                    )}
                   </p>
                 </div>
 
@@ -477,7 +519,7 @@ export default function AddProductPage() {
                     placeholder="Describe the product you want to add... (e.g., 'Add a red cotton kurta for women priced at ₹999 with 20% discount, available in sizes S and M. 10 in stock. Category: Ethnic Wear. Fabric: Cotton. Sleeve: 3/4th.')"
                     value={prompt}
                     onChange={e => setPrompt(e.target.value)}
-                    disabled={loading}
+                    disabled={loading || translating}
                     rows={8}
                   />
                   <div className="absolute bottom-3 right-3 flex items-center space-x-2">
@@ -492,7 +534,7 @@ export default function AddProductPage() {
                           : 'bg-blue-500 text-white hover:bg-blue-600'
                       }`}
                       title={audioRecording.isRecording ? "Stop Recording" : `Start Recording (${languages.find(l => l.code === selectedLanguage)?.name})`}
-                      disabled={speechToText.isLoading}
+                      disabled={speechToText.isLoading || loading || translating}
                     >
                       {audioRecording.isRecording ? (
                         <StopIcon className="h-4 w-4" />
@@ -504,7 +546,7 @@ export default function AddProductPage() {
                     <button
                       type="button"
                       onClick={handleTextToSpeech}
-                      disabled={!prompt.trim() || isPlaying || textToSpeech.isLoading}
+                      disabled={!prompt.trim() || isPlaying || textToSpeech.isLoading || loading || translating}
                       className="p-2 rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                       title="Read Text Aloud"
                     >
@@ -557,6 +599,14 @@ export default function AddProductPage() {
                   </div>
                 )}
 
+                {/* Translation Status */}
+                {translating && (
+                  <div className="flex items-center space-x-2 text-sm text-purple-600 dark:text-purple-400">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-500 border-t-transparent"></div>
+                    <span>Translating to English...</span>
+                  </div>
+                )}
+
                 {/* Speech Errors */}
                 {speechToText.error && (
                   <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">
@@ -574,9 +624,14 @@ export default function AddProductPage() {
                   <button
                     type="submit"
                     className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-blue-600 text-white font-semibold rounded-xl hover:from-emerald-700 hover:to-blue-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                    disabled={loading}
+                    disabled={loading || translating}
                   >
-                    {loading ? (
+                    {translating ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                        <span>Translating...</span>
+                      </>
+                    ) : loading ? (
                       <>
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                         <span>Adding Product...</span>

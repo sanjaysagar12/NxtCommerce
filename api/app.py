@@ -66,7 +66,7 @@ def allowed_file(filename):
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    return jsonify(BaseResponse(success=True, message="API is healthy").dict())
+    return jsonify(BaseResponse(success=True, message="API is healthy").model_dump())
 
 @app.route('/text-to-audio', methods=['POST'])
 def convert_text_to_audio():
@@ -80,7 +80,7 @@ def convert_text_to_audio():
                 success=False,
                 message="Invalid request",
                 error="Missing 'text' field in request body"
-            ).dict()), 400
+            ).model_dump()), 400
         
         text = data['text']
         language = data.get('language', 'en')
@@ -90,7 +90,7 @@ def convert_text_to_audio():
                 success=False,
                 message="Invalid request",
                 error="Text cannot be empty"
-            ).dict()), 400
+            ).model_dump()), 400
         
         # Convert text to audio
         audio_path, file_id = text_to_audio(
@@ -106,14 +106,14 @@ def convert_text_to_audio():
             audio_file_path=audio_path
         )
         
-        return jsonify(response.dict()), 200
+        return jsonify(response.model_dump()), 200
         
     except Exception as e:
         return jsonify(ErrorResponse(
             success=False,
             message="Internal server error",
             error=str(e)
-        ).dict()), 500
+        ).model_dump()), 500
 
 @app.route('/translate', methods=['POST'])
 def translate():
@@ -127,7 +127,7 @@ def translate():
                 success=False,
                 message="Invalid request",
                 error="Missing required fields: 'text' and 'target_language'"
-            ).dict()), 400
+            ).model_dump()), 400
         
         text = data['text']
         target_language = data['target_language']
@@ -138,7 +138,7 @@ def translate():
                 success=False,
                 message="Invalid request",
                 error="Text cannot be empty"
-            ).dict()), 400
+            ).model_dump()), 400
         
         # Translate text
         translated_text, detected_source_language = translate_text(
@@ -155,14 +155,14 @@ def translate():
             target_language=target_language
         )
         
-        return jsonify(response.dict()), 200
+        return jsonify(response.model_dump()), 200
         
     except Exception as e:
         return jsonify(ErrorResponse(
             success=False,
             message="Internal server error",
             error=str(e)
-        ).dict()), 500
+        ).model_dump()), 500
 
 @app.route('/detect-language', methods=['POST'])
 def detect_language_endpoint():
@@ -176,7 +176,7 @@ def detect_language_endpoint():
                 success=False,
                 message="Invalid request",
                 error="Missing 'text' field in request body"
-            ).dict()), 400
+            ).model_dump()), 400
         
         text = data['text']
         
@@ -185,7 +185,7 @@ def detect_language_endpoint():
                 success=False,
                 message="Invalid request",
                 error="Text cannot be empty"
-            ).dict()), 400
+            ).model_dump()), 400
         
         # Detect language
         detected_language = detect_language(text)
@@ -196,7 +196,7 @@ def detect_language_endpoint():
         )
         
         # Add detected language to response
-        response_dict = response.dict()
+        response_dict = response.model_dump()
         response_dict['detected_language'] = detected_language
         
         return jsonify(response_dict), 200
@@ -206,7 +206,7 @@ def detect_language_endpoint():
             success=False,
             message="Internal server error",
             error=str(e)
-        ).dict()), 500
+        ).model_dump()), 500
 
 @app.route('/audio-to-text', methods=['POST'])
 def convert_audio_to_text():
@@ -218,7 +218,7 @@ def convert_audio_to_text():
                 success=False,
                 message="Invalid request",
                 error="No audio file provided"
-            ).dict()), 400
+            ).model_dump()), 400
         
         file = request.files['audio']
         language = request.form.get('language', 'en-US')
@@ -228,14 +228,14 @@ def convert_audio_to_text():
                 success=False,
                 message="Invalid request",
                 error="No file selected"
-            ).dict()), 400
+            ).model_dump()), 400
         
         if not allowed_file(file.filename):
             return jsonify(ErrorResponse(
                 success=False,
                 message="Invalid file type",
                 error=f"Supported formats: {', '.join(ALLOWED_EXTENSIONS)}"
-            ).dict()), 400
+            ).model_dump()), 400
         
         # Save uploaded file temporarily
         filename = secure_filename(file.filename)
@@ -251,7 +251,7 @@ def convert_audio_to_text():
                     success=False,
                     message="Speech recognition failed",
                     error="Could not recognize speech in the audio file"
-                ).dict()), 400
+                ).model_dump()), 400
             
             response = AudioToTextResponse(
                 success=True,
@@ -260,7 +260,7 @@ def convert_audio_to_text():
                 language=language
             )
             
-            return jsonify(response.dict()), 200
+            return jsonify(response.model_dump()), 200
             
         finally:
             # Clean up temporary file
@@ -272,7 +272,7 @@ def convert_audio_to_text():
             success=False,
             message="Internal server error",
             error=str(e)
-        ).dict()), 500
+        ).model_dump()), 500
 
 @app.route('/download-audio/<file_id>', methods=['GET'])
 def download_audio(file_id):
@@ -286,7 +286,7 @@ def download_audio(file_id):
                 success=False,
                 message="File not found",
                 error="Audio file does not exist"
-            ).dict()), 404
+            ).model_dump()), 404
         
         return send_file(file_path, as_attachment=True, download_name=f"{file_id}.mp3")
         
@@ -295,7 +295,7 @@ def download_audio(file_id):
             success=False,
             message="Internal server error",
             error=str(e)
-        ).dict()), 500
+        ).model_dump()), 500
 
 @app.route('/add-product', methods=['POST'])
 def add_product_endpoint():
@@ -345,7 +345,7 @@ def too_large(e):
         success=False,
         message="File too large",
         error="File size exceeds the maximum limit of 16MB"
-    ).dict()), 413
+    ).model_dump()), 413
 
 @app.errorhandler(404)
 def not_found(e):
@@ -353,7 +353,7 @@ def not_found(e):
         success=False,
         message="Endpoint not found",
         error="The requested endpoint does not exist"
-    ).dict()), 404
+    ).model_dump()), 404
 
 @app.errorhandler(500)
 def internal_error(e):
@@ -361,7 +361,7 @@ def internal_error(e):
         success=False,
         message="Internal server error",
         error="An unexpected error occurred"
-    ).dict()), 500
+    ).model_dump()), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
