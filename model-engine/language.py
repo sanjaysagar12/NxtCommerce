@@ -2,6 +2,7 @@ import speech_recognition as sr
 import os
 from typing import Optional
 from gtts import gTTS
+from googletrans import Translator
 import uuid
 def audio_to_text(audio_file_path: str, language: str = "en-US") -> Optional[str]:
     """
@@ -73,4 +74,58 @@ def text_to_audio(text: str, language: str = "en-US", audio_dir: str = "audio") 
     tts.save(output_path)
 
     return output_path, file_id
+
+def translate_text(text: str, target_language: str = "en", source_language: str = "auto") -> tuple[str, str]:
+    """
+    Translate text from one language to another using Google Translate.
+    
+    Args:
+        text (str): Text to translate
+        target_language (str): Target language code (e.g., "en", "es", "fr")
+        source_language (str): Source language code (e.g., "en", "es", "auto")
+    
+    Returns:
+        tuple[str, str]: Tuple containing (translated_text, detected_source_language)
+    
+    Raises:
+        Exception: If translation fails
+    """
+    try:
+        # Initialize translator
+        translator = Translator()
+        
+        # Translate text
+        result = translator.translate(text, src=source_language, dest=target_language)
+        
+        return result.text, result.src
+        
+    except Exception as e:
+        print(f"An error occurred during translation: {e}")
+        raise Exception(f"Translation failed: {str(e)}")
+
+def detect_language(text: str) -> str:
+    """
+    Detect the language of the given text.
+    
+    Args:
+        text (str): Text to detect language for
+    
+    Returns:
+        str: Detected language code
+    
+    Raises:
+        Exception: If language detection fails
+    """
+    try:
+        # Initialize translator
+        translator = Translator()
+        
+        # Detect language
+        result = translator.detect(text)
+        
+        return result.lang
+        
+    except Exception as e:
+        print(f"An error occurred during language detection: {e}")
+        raise Exception(f"Language detection failed: {str(e)}")
 
