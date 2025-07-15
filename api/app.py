@@ -11,6 +11,9 @@ import tempfile
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'model-engine'))
 from language import audio_to_text, text_to_audio, translate_text, detect_language
 
+# Import ecommerce API functions
+from ecommerce import add_product_api, search_products_api
+
 app = Flask(__name__)
 
 # Enable CORS for all routes
@@ -293,6 +296,48 @@ def download_audio(file_id):
             message="Internal server error",
             error=str(e)
         ).dict()), 500
+
+@app.route('/add-product', methods=['POST'])
+def add_product_endpoint():
+    """Add a product using natural language input"""
+    try:
+        data = request.get_json()
+        if not data or 'user_input' not in data:
+            return jsonify({
+                "success": False,
+                "message": "Missing 'user_input' in request body."
+            }), 400
+        user_input = data['user_input']
+        result = add_product_api(user_input)
+        status_code = 200 if result.get('success') else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": "Internal server error.",
+            "error": str(e)
+        }), 500
+
+@app.route('/search-products', methods=['POST'])
+def search_products_endpoint():
+    """Search products using natural language input"""
+    try:
+        data = request.get_json()
+        if not data or 'user_input' not in data:
+            return jsonify({
+                "success": False,
+                "message": "Missing 'user_input' in request body."
+            }), 400
+        user_input = data['user_input']
+        result = search_products_api(user_input)
+        status_code = 200 if result.get('success') else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": "Internal server error.",
+            "error": str(e)
+        }), 500
 
 @app.errorhandler(413)
 def too_large(e):
