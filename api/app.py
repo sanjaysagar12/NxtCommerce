@@ -9,7 +9,7 @@ import tempfile
 
 # Add the modelengine directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'model-engine'))
-from language import audio_to_text, text_to_audio
+from language import audio_to_text, text_to_audio, translate_text, detect_language
 
 app = Flask(__name__)
 
@@ -43,6 +43,16 @@ class TextToAudioResponse(BaseResponse):
 class AudioToTextResponse(BaseResponse):
     text: Optional[str] = None
     language: Optional[str] = None
+
+class TranslateRequest(BaseModel):
+    text: str = Field(..., description="Text to translate")
+    target_language: str = Field(..., description="Target language code (e.g., 'en', 'es', 'fr')")
+    source_language: str = Field(default="auto", description="Source language code (e.g., 'en', 'es', 'auto')")
+
+class TranslateResponse(BaseResponse):
+    translated_text: Optional[str] = None
+    source_language: Optional[str] = None
+    target_language: Optional[str] = None
 
 class ErrorResponse(BaseResponse):
     error: str
@@ -94,6 +104,99 @@ def convert_text_to_audio():
         )
         
         return jsonify(response.dict()), 200
+        
+    except Exception as e:
+        return jsonify(ErrorResponse(
+            success=False,
+            message="Internal server error",
+            error=str(e)
+        ).dict()), 500
+
+@app.route('/translate', methods=['POST'])
+def translate():
+    """Translate text from one language to another"""
+    try:
+        data = request.get_json()
+        
+        # Validate request data
+        if not data or 'text' not in data or 'target_language' not in data:
+            return jsonify(ErrorResponse(
+                success=False,
+                message="Invalid request",
+                error="Missing required fields: 'text' and 'target_language'"
+            ).dict()), 400
+        
+        text = data['text']
+        target_language = data['target_language']
+        source_language = data.get('source_language', 'auto')
+        
+        if not text.strip():
+            return jsonify(ErrorResponse(
+                success=False,
+                message="Invalid request",
+                error="Text cannot be empty"
+            ).dict()), 400
+        
+        # Translate text
+        translated_text, detected_source_language = translate_text(
+            text=text,
+            target_language=target_language,
+            source_language=source_language
+        )
+        
+        response = TranslateResponse(
+            success=True,
+            message="Text successfully translated",
+            translated_text=translated_text,
+            source_language=detected_source_language,
+            target_language=target_language
+        )
+        
+        return jsonify(response.dict()), 200
+        
+    except Exception as e:
+        return jsonify(ErrorResponse(
+            success=False,
+            message="Internal server error",
+            error=str(e)
+        ).dict()), 500
+
+@app.route('/detect-language', methods=['POST'])
+def detect_language_endpoint():
+    """Detect the language of the given text"""
+    try:
+        data = request.get_json()
+        
+        # Validate request data
+        if not data or 'text' not in data:
+            return jsonify(ErrorResponse(
+                success=False,
+                message="Invalid request",
+                error="Missing 'text' field in request body"
+            ).dict()), 400
+        
+        text = data['text']
+        
+        if not text.strip():
+            return jsonify(ErrorResponse(
+                success=False,
+                message="Invalid request",
+                error="Text cannot be empty"
+            ).dict()), 400
+        
+        # Detect language
+        detected_language = detect_language(text)
+        
+        response = BaseResponse(
+            success=True,
+            message=f"Language detected: {detected_language}"
+        )
+        
+        # Add detected language to response
+        response_dict = response.dict()
+        response_dict['detected_language'] = detected_language
+        
+        return jsonify(response_dict), 200
         
     except Exception as e:
         return jsonify(ErrorResponse(
