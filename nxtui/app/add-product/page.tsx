@@ -15,6 +15,23 @@ import {
   PauseIcon
 } from "@heroicons/react/24/outline";
 
+// Language options for speech recognition
+const languages = [
+  { code: 'en-US', name: 'English (US)' },
+  { code: 'ta-IN', name: 'Tamil (India)' },
+  { code: 'en-GB', name: 'English (UK)' },
+  { code: 'es-ES', name: 'Spanish (Spain)' },
+  { code: 'fr-FR', name: 'French (France)' },
+  { code: 'de-DE', name: 'German (Germany)' },
+  { code: 'it-IT', name: 'Italian (Italy)' },
+  { code: 'pt-BR', name: 'Portuguese (Brazil)' },
+  { code: 'ja-JP', name: 'Japanese' },
+  { code: 'ko-KR', name: 'Korean' },
+  { code: 'zh-CN', name: 'Chinese (Mandarin)' },
+  { code: 'hi-IN', name: 'Hindi (India)' },
+  { code: 'ar-SA', name: 'Arabic (Saudi Arabia)' },
+];
+
 // Custom hooks for speech functionality
 const useSpeechToText = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -282,6 +299,9 @@ export default function AddProductPage() {
   const [error, setError] = useState("");
   const [showJson, setShowJson] = useState(false);
   
+  // Language selection for speech recognition
+  const [selectedLanguage, setSelectedLanguage] = useState('en-US');
+  
   // Use custom hooks for speech functionality
   const speechToText = useSpeechToText();
   const audioRecording = useAudioRecording();
@@ -334,7 +354,7 @@ export default function AddProductPage() {
   const handleStartRecording = () => {
     audioRecording.startRecording(
       async (audioFile: File) => {
-        const text = await speechToText.convertAudioToText(audioFile);
+        const text = await speechToText.convertAudioToText(audioFile, selectedLanguage);
         if (text) {
           setPrompt(prev => prev + (prev ? ' ' : '') + text);
         }
@@ -430,6 +450,27 @@ export default function AddProductPage() {
               </div>
 
               <form onSubmit={handleAddProduct} className="space-y-4">
+                {/* Language Selector for Speech Recognition */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Speech Recognition Language
+                  </label>
+                  <select
+                    value={selectedLanguage}
+                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm text-gray-900 dark:text-white text-sm"
+                  >
+                    {languages.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Selected: {languages.find(l => l.code === selectedLanguage)?.name} ({selectedLanguage})
+                  </p>
+                </div>
+
                 <div className="relative">
                   <textarea
                     className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 resize-none transition-all duration-200 shadow-sm"
@@ -450,7 +491,7 @@ export default function AddProductPage() {
                           ? 'bg-red-500 text-white hover:bg-red-600' 
                           : 'bg-blue-500 text-white hover:bg-blue-600'
                       }`}
-                      title={audioRecording.isRecording ? "Stop Recording" : "Start Recording"}
+                      title={audioRecording.isRecording ? "Stop Recording" : `Start Recording (${languages.find(l => l.code === selectedLanguage)?.name})`}
                       disabled={speechToText.isLoading}
                     >
                       {audioRecording.isRecording ? (
@@ -491,14 +532,14 @@ export default function AddProductPage() {
                 {audioRecording.isRecording && (
                   <div className="flex items-center space-x-2 text-sm text-red-600 dark:text-red-400">
                     <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                    <span>Recording... {audioRecording.formatTime(audioRecording.recordingTime)}</span>
+                    <span>Recording in {languages.find(l => l.code === selectedLanguage)?.name}... {audioRecording.formatTime(audioRecording.recordingTime)}</span>
                   </div>
                 )}
 
                 {speechToText.isLoading && (
                   <div className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400">
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
-                    <span>Converting speech to text...</span>
+                    <span>Converting speech to text ({languages.find(l => l.code === selectedLanguage)?.name})...</span>
                   </div>
                 )}
 
