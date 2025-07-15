@@ -204,17 +204,33 @@ def parse_search_query(user_input, categories, attributes):
     name_match = re.search(r'(find|search|show|get|list)\s+(.*?)(?:\s+(?:with|in|under|above|category|price|rating|sort)|\s*$)', user_input, re.IGNORECASE)
     if name_match:
         search_params['name'] = name_match.group(2).strip()
-    price_matches = re.findall(r'(?:price|cost)\s*(?:between|from)?\s*₹?(\d+)(?:\s*(?:to|-)\s*₹?(\d+))?', user_input, re.IGNORECASE)
-    if price_matches:
-        min_price, max_price = price_matches[0]
-        search_params['minPrice'] = int(min_price) if min_price else None
-        search_params['maxPrice'] = int(max_price) if max_price else None
-    min_price_match = re.search(r'(?:above|over|more\s+than|minimum)\s*₹?(\d+)', user_input, re.IGNORECASE)
+    # Parse price ranges and constraints
+    # Handle "between X and Y" or "from X to Y"
+    price_range_match = re.search(r'(?:between|from)\s*₹?(\d+)(?:\s*(?:to|-|and)\s*₹?(\d+))', user_input, re.IGNORECASE)
+    if price_range_match:
+        search_params['minPrice'] = int(price_range_match.group(1))
+        search_params['maxPrice'] = int(price_range_match.group(2))
+    
+    # Handle "above/over/more than X"
+    min_price_match = re.search(r'(?:above|over|more\s+than|minimum|greater\s+than)\s*₹?(\d+)', user_input, re.IGNORECASE)
     if min_price_match:
         search_params['minPrice'] = int(min_price_match.group(1))
-    max_price_match = re.search(r'(?:under|below|less\s+than|maximum)\s*₹?(\d+)', user_input, re.IGNORECASE)
+    
+    # Handle "under/below/less than X" - improved pattern to handle "less the" typo
+    max_price_match = re.search(r'(?:under|below|less\s+(?:than|the)|maximum|cheaper\s+than)\s*₹?(\d+)', user_input, re.IGNORECASE)
     if max_price_match:
         search_params['maxPrice'] = int(max_price_match.group(1))
+    
+    # Handle simple "less ₹1000" or "under ₹1000" patterns
+    simple_max_price_match = re.search(r'(?:less|under)\s*₹?(\d+)', user_input, re.IGNORECASE)
+    if simple_max_price_match and not max_price_match:
+        search_params['maxPrice'] = int(simple_max_price_match.group(1))
+    
+    # Handle "price X" or "cost X" patterns for range detection
+    price_only_match = re.search(r'(?:price|cost)\s*₹?(\d+)', user_input, re.IGNORECASE)
+    if price_only_match and not price_range_match and not min_price_match and not max_price_match:
+        # If no other price constraint found, treat as max price
+        search_params['maxPrice'] = int(price_only_match.group(1))
     rating_match = re.search(r'rating\s*(?:above|over|more\s+than)?\s*(\d+)', user_input, re.IGNORECASE)
     if rating_match:
         search_params['minRating'] = int(rating_match.group(1))
