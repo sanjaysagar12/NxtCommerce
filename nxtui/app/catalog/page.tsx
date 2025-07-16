@@ -2,66 +2,124 @@
 
 import { useState, useRef, useEffect } from "react";
 import { 
-  MagnifyingGlassIcon, 
   SparklesIcon,
   DocumentTextIcon,
-  PlusCircleIcon,
-  ChartBarIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ClipboardDocumentIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  MicrophoneIcon,
+  StopIcon
 } from "@heroicons/react/24/outline";
 
-// Action types for catalog processing
-const actionTypes = [
-  { value: 'summary', label: 'AI Summary', icon: SparklesIcon, description: 'Generate intelligent catalog summary' },
-  { value: 'search', label: 'Search Products', icon: MagnifyingGlassIcon, description: 'Search through catalog' },
-  { value: 'add-product', label: 'Add Product', icon: PlusCircleIcon, description: 'Add new product from text' },
-  { value: 'analyze', label: 'Analyze Text', icon: ChartBarIcon, description: 'Analyze text for insights' }
-];
-
-// Sort options
-const sortOptions = [
-  { value: 'createdAt', label: 'Created Date' },
-  { value: 'name', label: 'Product Name' },
-  { value: 'price', label: 'Price' },
-  { value: 'stock', label: 'Stock' }
-];
-
-const sortOrders = [
-  { value: 'desc', label: 'Descending' },
-  { value: 'asc', label: 'Ascending' }
-];
+// Simple markdown renderer for basic formatting
+const renderMarkdown = (text: string) => {
+  if (!text) return <div>No content available</div>;
+  
+  // Split by lines to preserve structure
+  const lines = text.split('\n');
+  const elements: React.ReactElement[] = [];
+  
+  lines.forEach((line, index) => {
+    // Headers
+    if (line.startsWith('# ')) {
+      elements.push(<h1 key={index} className="text-2xl font-bold text-gray-900 dark:text-white mb-4">{line.substring(2)}</h1>);
+    } else if (line.startsWith('## ')) {
+      elements.push(<h2 key={index} className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">{line.substring(3)}</h2>);
+    } else if (line.startsWith('### ')) {
+      elements.push(<h3 key={index} className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">{line.substring(4)}</h3>);
+    }
+    // Bold text
+    else if (line.includes('**')) {
+      const parts = line.split('**');
+      const formatted = parts.map((part, i) => 
+        i % 2 === 1 ? <strong key={i} className="font-semibold text-gray-900 dark:text-white">{part}</strong> : part
+      );
+      elements.push(<p key={index} className="text-gray-700 dark:text-gray-300 mb-2">{formatted}</p>);
+    }
+    // Bullet points
+    else if (line.trim().startsWith('• ') || line.trim().startsWith('- ')) {
+      elements.push(<li key={index} className="text-gray-700 dark:text-gray-300 ml-4 mb-1">{line.trim().substring(2)}</li>);
+    }
+    // Code blocks or preformatted text
+    else if (line.startsWith('    ') || line.includes('```')) {
+      elements.push(<pre key={index} className="bg-gray-100 dark:bg-gray-800 text-sm p-2 rounded font-mono text-gray-800 dark:text-gray-200 mb-2">{line}</pre>);
+    }
+    // Dividers
+    else if (line.includes('━━━') || line.includes('---')) {
+      elements.push(<hr key={index} className="border-gray-300 dark:border-gray-600 my-4" />);
+    }
+    // Empty lines
+    else if (line.trim() === '') {
+      elements.push(<br key={index} />);
+    }
+    // Regular text
+    else {
+      elements.push(<p key={index} className="text-gray-700 dark:text-gray-300 mb-2">{line}</p>);
+    }
+  });
+  
+  return <div className="space-y-1">{elements}</div>;
+};
 
 export default function CatalogPage() {
   const [textInput, setTextInput] = useState("");
-  const [selectedAction, setSelectedAction] = useState("summary");
-  const [result, setResult] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showJsonView, setShowJsonView] = useState(false);
-  const [copied, setCopied] = useState(false);
-  
-  // Pagination and sorting states
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState("desc");
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+      setSpeechSupported(true);
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setTextInput(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, []);
+
+  const startListening = () => {
+    if (recognitionRef.current && speechSupported) {
+      setIsListening(true);
+      recognitionRef.current.start();
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+  };
 
   const handleProcessText = async (e?: React.FormEvent) => {
+    console.log("Processing text:", textInput);
     if (e) e.preventDefault();
     
-    setError("");
-    setResult(null);
-    
     if (!textInput.trim()) {
-      setError("Please enter some text to process.");
       return;
     }
     
+    const userMessage = { role: 'user', content: textInput };
+    setMessages(prev => [...prev, userMessage]);
+    setTextInput("");
     setLoading(true);
     
     try {
@@ -70,25 +128,38 @@ export default function CatalogPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: textInput,
-          action: selectedAction,
-          page: page,
-          limit: limit,
-          sortBy: sortBy,
-          sortOrder: sortOrder
+          action: "summary",
+          page: 1,
+          limit: 10,
+          sortBy: "createdAt",
+          sortOrder: "desc"
         }),
       });
       
       const data = await response.json();
       
       if (data.success) {
-        setResult(data);
+        const aiMessage = { 
+          role: 'assistant', 
+          content: data.text_summary || "No summary available",
+          fullData: data
+        };
+        setMessages(prev => [...prev, aiMessage]);
       } else {
-        setError(data.message || "Failed to process text.");
-        setResult(null);
+        const errorMessage = {
+          role: 'assistant',
+          content: data.message || "Failed to process text.",
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMessage]);
       }
     } catch (err: any) {
-      setError(err.message || "An error occurred while processing text.");
-      setResult(null);
+      const errorMessage = {
+        role: 'assistant',
+        content: err.message || "An error occurred while processing text.",
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setLoading(false);
     }
@@ -96,325 +167,214 @@ export default function CatalogPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const examplePrompts = [
-    "Show me products under 1000 rupees",
-    "What are the most popular product categories?",
+    "Show me current inventory status",
+    "I sold 10 products offline today",
+    "What products are low in stock?",
     "Add a blue cotton shirt for men priced at ₹799",
-    "Analyze the current stock levels",
-    "Find all products with low stock",
+    "Find products under 1000 rupees",
     "Generate a business report for the catalog"
   ];
 
-  const getActionIcon = (action: string) => {
-    const actionType = actionTypes.find(a => a.value === action);
-    if (actionType) {
-      const IconComponent = actionType.icon;
-      return <IconComponent className="w-5 h-5" />;
-    }
-    return <DocumentTextIcon className="w-5 h-5" />;
-  };
-
-  const renderResult = () => {
-    if (!result) return null;
-
-    const { text_summary, processed_text, message } = result;
-
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-              <CheckCircleIcon className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Processing Complete
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {message}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowJsonView(!showJsonView)}
-              className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
-            >
-              {showJsonView ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-              {showJsonView ? 'Hide' : 'Show'} JSON
-            </button>
-            <button
-              onClick={() => copyToClipboard(text_summary || JSON.stringify(result, null, 2))}
-              className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors flex items-center gap-2"
-            >
-              <ClipboardDocumentIcon className="w-4 h-4" />
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-        </div>
-
-        {/* Processed Text Display */}
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Processed Text:</p>
-          <p className="text-gray-900 dark:text-white font-medium">"{processed_text}"</p>
-        </div>
-
-        {/* Result Content */}
-        <div className="space-y-4">
-          {showJsonView ? (
-            <pre className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto text-sm">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          ) : (
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                {getActionIcon(selectedAction)}
-                <h4 className="font-semibold text-blue-900 dark:text-blue-100">
-                  {actionTypes.find(a => a.value === selectedAction)?.label} Result:
-                </h4>
-              </div>
-              <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                {text_summary || "No summary available"}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      {/* Header */}
-      <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm shadow-sm border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col">
+      {/* Professional Header */}
+      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-10">
+        <div className="px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg">
-                <DocumentTextIcon className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg">
+                <DocumentTextIcon className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                  Catalog AI
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Catalog AI Assistant
                 </h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Process text with AI-powered catalog intelligence
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                  Professional Inventory Management Solution
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="px-3 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium flex items-center gap-1">
-                <SparklesIcon className="w-4 h-4" />
-                AI-Powered
+              <div className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium">
+                <span className="w-2 h-2 bg-green-500 rounded-full inline-block mr-2"></span>
+                Online
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Input Section */}
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Text Input & Processing
-              </h2>
-
-              <form onSubmit={handleProcessText} className="space-y-4">
-                {/* Action Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Select Action
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {actionTypes.map((action) => {
-                      const IconComponent = action.icon;
-                      return (
-                        <button
-                          key={action.value}
-                          type="button"
-                          onClick={() => setSelectedAction(action.value)}
-                          className={`p-3 rounded-lg border transition-all ${
-                            selectedAction === action.value
-                              ? 'border-purple-300 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
-                              : 'border-gray-200 dark:border-gray-600 hover:border-purple-200 dark:hover:border-purple-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <IconComponent className="w-5 h-5" />
-                            <span className="text-sm font-medium">{action.label}</span>
+      {/* Chat Container - Full Screen */}
+      <div className="flex-1 flex">
+        <div className="w-full max-w-6xl mx-auto flex flex-col h-full">
+          
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            {messages.length === 0 && (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center max-w-3xl mx-auto">
+                  <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-xl mb-8 mx-auto w-fit">
+                    <DocumentTextIcon className="w-16 h-16 text-white mx-auto" />
+                  </div>
+                  <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+                    Welcome to Catalog AI
+                  </h3>
+                  <p className="text-lg text-gray-600 dark:text-gray-400 mb-12 leading-relaxed">
+                    Your intelligent inventory management assistant. Ask me anything about your products, stock levels, sales analytics, or catalog operations.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+                    {examplePrompts.map((prompt, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setTextInput(prompt)}
+                        className="p-4 text-left bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-sm border border-gray-200/50 dark:border-gray-700/50 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 group"
+                        disabled={loading}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors">
+                            <SparklesIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {action.description}
-                          </p>
-                        </button>
-                      );
-                    })}
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                              {prompt}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Try this example query
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* Text Input */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Enter your text ({textInput.length}/2000)
-                  </label>
-                  <textarea
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                    rows={6}
-                    maxLength={2000}
-                    placeholder="Enter your text here... For example: 'Show me products under 1000 rupees' or 'Add a blue cotton shirt for men'"
-                    disabled={loading}
-                  />
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className="flex items-start gap-3 max-w-[85%]">
+                  {message.role === 'assistant' && (
+                    <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-md flex-shrink-0">
+                      <DocumentTextIcon className="w-5 h-5 text-white" />
+                    </div>
+                  )}
+                  <div
+                    className={`px-6 py-4 rounded-2xl shadow-sm ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                        : message.isError
+                        ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                        : 'bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm text-gray-900 dark:text-white border border-gray-200/50 dark:border-gray-700/50'
+                    }`}
+                  >
+                    {message.role === 'user' ? (
+                      <p className="text-sm leading-relaxed">{message.content}</p>
+                    ) : (
+                      <div className="text-sm leading-relaxed">
+                        {message.isError ? (
+                          <p>{message.content}</p>
+                        ) : (
+                          <div className="prose dark:prose-invert max-w-none prose-sm">
+                            {renderMarkdown(message.content)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {message.role === 'user' && (
+                    <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-md flex-shrink-0">
+                      <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center">
+                        <span className="text-xs font-bold text-blue-600">U</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
+              </div>
+            ))}
 
-                {/* Options */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Page
-                    </label>
-                    <input
-                      type="number"
-                      value={page}
-                      onChange={(e) => setPage(parseInt(e.target.value) || 1)}
-                      min="1"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                      disabled={loading}
-                    />
+            {loading && (
+              <div className="flex justify-start">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-md">
+                    <DocumentTextIcon className="w-5 h-5 text-white" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Limit
-                    </label>
-                    <input
-                      type="number"
-                      value={limit}
-                      onChange={(e) => setLimit(parseInt(e.target.value) || 10)}
-                      min="1"
-                      max="50"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                      disabled={loading}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Sort By
-                    </label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                      disabled={loading}
-                    >
-                      {sortOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Order
-                    </label>
-                    <select
-                      value={sortOrder}
-                      onChange={(e) => setSortOrder(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                      disabled={loading}
-                    >
-                      {sortOrders.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 px-6 py-4 rounded-2xl shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <ArrowPathIcon className="w-5 h-5 animate-spin text-blue-600" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        Processing your request...
+                      </span>
+                    </div>
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
 
-                {/* Submit Button */}
+          {/* Professional Input Area */}
+          <div className="border-t border-gray-200/50 dark:border-gray-700/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm px-6 py-4">
+            <form onSubmit={handleProcessText} className="flex gap-3">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder="Ask about your inventory, products, analytics, or catalog operations..."
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700/80 dark:text-white shadow-sm text-sm placeholder-gray-500 dark:placeholder-gray-400 bg-white/80 backdrop-blur-sm"
+                  disabled={loading}
+                />
+              </div>
+              
+              {/* Voice Input Button */}
+              {speechSupported && (
                 <button
-                  type="submit"
-                  disabled={loading || !textInput.trim()}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:scale-100 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  type="button"
+                  onClick={isListening ? stopListening : startListening}
+                  disabled={loading}
+                  className={`px-4 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl disabled:shadow-none flex items-center gap-2 font-medium ${
+                    isListening
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
+                      : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
+                  }`}
                 >
-                  {loading ? (
+                  {isListening ? (
                     <>
-                      <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                      Processing...
+                      <StopIcon className="w-5 h-5" />
+                      <span className="hidden sm:inline">Stop</span>
                     </>
                   ) : (
                     <>
-                      {getActionIcon(selectedAction)}
-                      Process Text
+                      <MicrophoneIcon className="w-5 h-5" />
+                      <span className="hidden sm:inline">Speak</span>
                     </>
                   )}
                 </button>
-              </form>
-            </div>
-
-            {/* Example Prompts */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                Example Prompts
-              </h3>
-              <div className="space-y-2">
-                {examplePrompts.map((prompt, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setTextInput(prompt)}
-                    className="w-full text-left p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all"
-                    disabled={loading}
-                  >
-                    <span className="text-gray-700 dark:text-gray-300 text-sm">
-                      "{prompt}"
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Results Section */}
-          <div className="space-y-6">
-            {/* Error Display */}
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
-                <div className="flex items-center gap-3">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
-                  <div>
-                    <h3 className="font-semibold text-red-800 dark:text-red-200">Error</h3>
-                    <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Results */}
-            {result && renderResult()}
-
-            {/* Placeholder when no results */}
-            {!result && !error && !loading && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-                <DocumentTextIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Ready to Process
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400">
-                  Enter your text and select an action to get started with AI-powered catalog processing.
-                </p>
-              </div>
-            )}
+              )}
+              
+              <button
+                type="submit"
+                disabled={loading || !textInput.trim()}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl disabled:shadow-none flex items-center gap-2 font-medium"
+              >
+                {loading ? (
+                  <>
+                    <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                    Processing
+                  </>
+                ) : (
+                  <>
+                    <SparklesIcon className="w-5 h-5" />
+                    Send
+                  </>
+                )}
+              </button>
+            </form>
           </div>
         </div>
       </div>
