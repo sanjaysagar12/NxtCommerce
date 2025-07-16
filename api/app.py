@@ -12,7 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'model-engine'))
 from language import audio_to_text, text_to_audio, translate_text, detect_language
 
 # Import ecommerce API functions
-from ecommerce import add_product_api, search_products_api
+from ecommerce import add_product_api, search_products_api, catalog_ai_api
 
 app = Flask(__name__)
 
@@ -332,6 +332,93 @@ def search_products_endpoint():
         result = search_products_api(user_input)
         status_code = 200 if result.get('success') else 400
         return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": "Internal server error.",
+            "error": str(e)
+        }), 500
+
+@app.route('/catalog', methods=['GET'])
+def view_catalog_endpoint():
+    """View product catalog with pagination"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 10, type=int)
+        sort_by = request.args.get('sortBy', 'createdAt')
+        sort_order = request.args.get('sortOrder', 'desc')
+        show_full_details = request.args.get('fullDetails', False, type=bool)
+        
+        result = catalog_ai_api(
+            action="view",
+            page=page,
+            limit=limit,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            show_full_details=show_full_details
+        )
+        
+        status_code = 200 if result.get('success') else 400
+        return jsonify(result), status_code
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": "Internal server error.",
+            "error": str(e)
+        }), 500
+
+@app.route('/catalog/export', methods=['POST'])
+def export_catalog_endpoint():
+    """Export catalog to JSON or CSV"""
+    try:
+        data = request.get_json()
+        export_format = data.get('format', 'json').lower()
+        
+        if export_format not in ['json', 'csv']:
+            return jsonify({
+                "success": False,
+                "message": "Invalid export format. Use 'json' or 'csv'."
+            }), 400
+        
+        action = "export_json" if export_format == 'json' else "export_csv"
+        result = catalog_ai_api(action=action)
+        
+        status_code = 200 if result.get('success') else 400
+        return jsonify(result), status_code
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": "Internal server error.",
+            "error": str(e)
+        }), 500
+
+@app.route('/catalog/search', methods=['POST'])
+def search_catalog_endpoint():
+    """Search products in catalog"""
+    try:
+        data = request.get_json()
+        if not data or 'query' not in data:
+            return jsonify({
+                "success": False,
+                "message": "Missing 'query' in request body."
+            }), 400
+        
+        query = data['query']
+        page = data.get('page', 1)
+        limit = data.get('limit', 10)
+        
+        result = catalog_ai_api(
+            action="search",
+            query=query,
+            page=page,
+            limit=limit
+        )
+        
+        status_code = 200 if result.get('success') else 400
+        return jsonify(result), status_code
+        
     except Exception as e:
         return jsonify({
             "success": False,
