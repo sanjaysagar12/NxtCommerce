@@ -1,6 +1,9 @@
 import os
 import json
 import urllib.parse
+import re
+import random
+import requests
 from dotenv import load_dotenv
 import google.generativeai as genai
 from agentic_api import AgenticAPI
@@ -541,6 +544,295 @@ def search_products_api(user_input=None):
         return {
             "success": False,
             "message": "Failed to authenticate. Cannot search products."
+        }
+
+def display_product_catalog(products_data, show_full_details=False):
+    """Display products in a well-formatted catalog layout"""
+    if not products_data or 'products' not in products_data:
+        print("❌ No products found in catalog")
+        return
+    
+    products = products_data['products']
+    total_products = products_data.get('total', len(products))
+    current_page = products_data.get('page', 1)
+    total_pages = products_data.get('totalPages', 1)
+    
+    print("\n" + "="*80)
+    print(f"🛍️  PRODUCT CATALOG ({total_products} products)")
+    print("="*80)
+    print(f"📄 Page {current_page} of {total_pages}")
+    print("-"*80)
+    
+    if not products:
+        print("📭 No products found")
+        return
+    
+    for i, product in enumerate(products, 1):
+        print(f"\n📦 Product #{i}")
+        print(f"🆔 ID: {product.get('id', 'N/A')}")
+        print(f"📝 Name: {product.get('name', 'N/A')}")
+        print(f"💰 Price: ₹{product.get('price', 0)}")
+        
+        if product.get('discount'):
+            discounted_price = product['price'] * (1 - product['discount'] / 100)
+            print(f"🏷️  Discount: {product['discount']}% (₹{discounted_price:.2f})")
+        
+        print(f"📦 Stock: {product.get('stock', 0)}")
+        print(f"🏷️  SKU: {product.get('sku', 'N/A')}")
+        
+        # Show description (truncated)
+        description = product.get('description', '')
+        if description:
+            if len(description) > 100 and not show_full_details:
+                description = description[:100] + "..."
+            print(f"📋 Description: {description}")
+        
+        # Show categories
+        categories = product.get('categories', [])
+        if categories:
+            category_names = [cat.get('name', 'Unknown') for cat in categories]
+            print(f"🏷️  Categories: {', '.join(category_names)}")
+        
+        # Show attributes
+        attributes = product.get('attributes', [])
+        if attributes:
+            attr_str = ", ".join([f"{attr.get('name', 'Unknown')}: {attr.get('value', 'N/A')}" for attr in attributes])
+            print(f"🔧 Attributes: {attr_str}")
+        
+        # Show variants count
+        variants = product.get('variants', [])
+        if variants:
+            print(f"🎨 Variants: {len(variants)} available")
+            if show_full_details:
+                for variant in variants:
+                    print(f"   - {variant.get('name', 'N/A')} (SKU: {variant.get('sku', 'N/A')}, Stock: {variant.get('stock', 0)})")
+        
+        # Show image count
+        images = product.get('images', [])
+        if images:
+            print(f"🖼️  Images: {len(images)} available")
+        
+        # Show timestamps
+        created_at = product.get('createdAt', '')
+        updated_at = product.get('updatedAt', '')
+        if created_at:
+            print(f"📅 Created: {created_at}")
+        if updated_at and updated_at != created_at:
+            print(f"📅 Updated: {updated_at}")
+        
+        print("-"*40)
+    
+    print(f"\n📊 Showing {len(products)} products out of {total_products} total")
+    if total_pages > 1:
+        print(f"📄 Page {current_page} of {total_pages}")
+    print("="*80)
+
+def export_catalog_to_json(products_data, filename="catalog_export.json"):
+    """Export catalog data to JSON file"""
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(products_data, f, indent=2, ensure_ascii=False)
+        print(f"✅ Catalog exported to {filename}")
+        return True
+    except Exception as e:
+        print(f"❌ Error exporting catalog: {e}")
+        return False
+
+def export_catalog_to_csv(products_data, filename="catalog_export.csv"):
+    """Export catalog data to CSV file"""
+    try:
+        import csv
+        
+        if not products_data or 'products' not in products_data:
+            print("❌ No products data to export")
+            return False
+        
+        products = products_data['products']
+        
+        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = ['id', 'name', 'price', 'discount', 'stock', 'sku', 'description', 
+                         'categories', 'attributes', 'variants_count', 'images_count', 
+                         'createdAt', 'updatedAt']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            
+            writer.writeheader()
+            for product in products:
+                # Process categories
+                categories = product.get('categories', [])
+                categories_str = '; '.join([cat.get('name', 'Unknown') for cat in categories])
+                
+                # Process attributes
+                attributes = product.get('attributes', [])
+                attributes_str = '; '.join([f"{attr.get('name', 'Unknown')}: {attr.get('value', 'N/A')}" for attr in attributes])
+                
+                writer.writerow({
+                    'id': product.get('id', ''),
+                    'name': product.get('name', ''),
+                    'price': product.get('price', 0),
+                    'discount': product.get('discount', 0),
+                    'stock': product.get('stock', 0),
+                    'sku': product.get('sku', ''),
+                    'description': product.get('description', ''),
+                    'categories': categories_str,
+                    'attributes': attributes_str,
+                    'variants_count': len(product.get('variants', [])),
+                    'images_count': len(product.get('images', [])),
+                    'createdAt': product.get('createdAt', ''),
+                    'updatedAt': product.get('updatedAt', '')
+                })
+        
+        print(f"✅ Catalog exported to {filename}")
+        return True
+    except Exception as e:
+        print(f"❌ Error exporting catalog to CSV: {e}")
+        return False
+
+def get_catalog_ai(page=1, limit=10, sort_by="createdAt", sort_order="desc", export_format=None, show_full_details=False):
+    """
+    Catalog AI function to fetch and display seller products
+    
+    Args:
+        page (int): Page number for pagination
+        limit (int): Number of products per page
+        sort_by (str): Field to sort by (createdAt, name, price, etc.)
+        sort_order (str): Sort order (asc or desc)
+        export_format (str): Export format ('json' or 'csv')
+        show_full_details (bool): Show full product details
+    """
+    print("🤖 Catalog AI - Fetching your product catalog...")
+    
+    # Initialize API
+    api = AgenticAPI()
+    
+    # Authenticate
+    print("🔐 Authenticating...")
+    access_token = api.authenticate_user()
+    
+    if not access_token:
+        print("❌ Authentication failed. Cannot fetch catalog.")
+        return None
+    
+    # Fetch products
+    print(f"📡 Fetching products (Page {page}, Limit {limit})...")
+    products_data = api.get_seller_products(access_token, page, limit, sort_by, sort_order)
+    
+    if not products_data:
+        print("❌ Failed to fetch products from catalog.")
+        return None
+    
+    # Display catalog
+    display_product_catalog(products_data, show_full_details)
+    
+    # Export if requested
+    if export_format:
+        if export_format.lower() == 'json':
+            export_catalog_to_json(products_data)
+        elif export_format.lower() == 'csv':
+            export_catalog_to_csv(products_data)
+        else:
+            print(f"⚠️  Unknown export format: {export_format}. Supported formats: 'json', 'csv'")
+    
+    return products_data
+
+# Convenience functions for common use cases
+def view_catalog(page=1, limit=10):
+    """Quick view of the catalog"""
+    return get_catalog_ai(page=page, limit=limit)
+
+def export_catalog_json(filename="catalog_export.json"):
+    """Export entire catalog to JSON"""
+    return get_catalog_ai(limit=100, export_format='json')
+
+def export_catalog_csv(filename="catalog_export.csv"):
+    """Export entire catalog to CSV"""
+    return get_catalog_ai(limit=100, export_format='csv')
+
+def search_catalog(query, page=1, limit=10):
+    """Search products in catalog by name/description"""
+    print(f"🔍 Searching catalog for: '{query}'")
+    # This would need to be implemented based on API search capabilities
+    # For now, fetch all and filter locally
+    products_data = get_catalog_ai(page=page, limit=limit)
+    
+    if not products_data or 'products' not in products_data:
+        return None
+    
+    # Filter products based on query
+    filtered_products = []
+    for product in products_data['products']:
+        name = product.get('name', '').lower()
+        description = product.get('description', '').lower()
+        if query.lower() in name or query.lower() in description:
+            filtered_products.append(product)
+    
+    # Create filtered response
+    filtered_data = {
+        'products': filtered_products,
+        'total': len(filtered_products),
+        'page': page,
+        'totalPages': 1
+    }
+    
+    if filtered_products:
+        display_product_catalog(filtered_data)
+    else:
+        print(f"❌ No products found matching '{query}'")
+    
+    return filtered_data
+
+# API-friendly function for catalog operations
+def catalog_ai_api(action="view", **kwargs):
+    """
+    API-friendly catalog AI function
+    
+    Args:
+        action (str): Action to perform ('view', 'export_json', 'export_csv', 'search')
+        **kwargs: Additional parameters for each action
+    """
+    try:
+        if action == "view":
+            return {
+                "success": True,
+                "message": "Catalog viewed successfully",
+                "data": get_catalog_ai(**kwargs)
+            }
+        elif action == "export_json":
+            data = get_catalog_ai(export_format='json', **kwargs)
+            return {
+                "success": True,
+                "message": "Catalog exported to JSON successfully",
+                "data": data
+            }
+        elif action == "export_csv":
+            data = get_catalog_ai(export_format='csv', **kwargs)
+            return {
+                "success": True,
+                "message": "Catalog exported to CSV successfully",
+                "data": data
+            }
+        elif action == "search":
+            query = kwargs.get('query', '')
+            if not query:
+                return {
+                    "success": False,
+                    "message": "Search query is required"
+                }
+            data = search_catalog(query, kwargs.get('page', 1), kwargs.get('limit', 10))
+            return {
+                "success": True,
+                "message": f"Search completed for '{query}'",
+                "data": data
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Unknown action: {action}"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": "Internal error in catalog AI",
+            "error": str(e)
         }
 
 # if __name__ == "__main__":

@@ -129,3 +129,26 @@ class AgenticAPI:
         except Exception as e:
             print(f"❌ Error during search: {e}")
             return None
+
+    def get_seller_products(self, access_token, page=1, limit=10, sort_by="createdAt", sort_order="desc"):
+        """Fetch seller products from the API with pagination and sorting"""
+        try:
+            headers = {
+                'accept': 'application/json',
+                'Authorization': f'Bearer {access_token}'
+            }
+            
+            # Build the URL with query parameters
+            url = f"{self.base_url}/api/seller-product?page={page}&limit={limit}&sortBy={sort_by}&sortOrder={sort_order}"
+            
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                return data
+            else:
+                print(f"❌ Failed to fetch seller products. Status: {response.status_code}")
+                print(f"Response: {response.text}")
+                return None
+        except Exception as e:
+            print(f"❌ Error fetching seller products: {e}")
+            return None
