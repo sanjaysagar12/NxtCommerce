@@ -547,9 +547,9 @@ def search_products_api(user_input=None):
         }
 
 def display_product_catalog(products_data, show_full_details=False):
-    """Display products in a well-formatted catalog layout"""
+    """Display products in a text summary format"""
     if not products_data or 'products' not in products_data:
-        print("❌ No products found in catalog")
+        print("No products found in catalog")
         return
     
     products = products_data['products']
@@ -557,75 +557,60 @@ def display_product_catalog(products_data, show_full_details=False):
     current_page = products_data.get('page', 1)
     total_pages = products_data.get('totalPages', 1)
     
-    print("\n" + "="*80)
-    print(f"🛍️  PRODUCT CATALOG ({total_products} products)")
-    print("="*80)
-    print(f"📄 Page {current_page} of {total_pages}")
-    print("-"*80)
+    print(f"\nPRODUCT CATALOG SUMMARY ({total_products} products)")
+    print("=" * 50)
+    print(f"Page {current_page} of {total_pages}")
+    print("-" * 50)
     
     if not products:
-        print("📭 No products found")
+        print("No products found")
         return
     
     for i, product in enumerate(products, 1):
-        print(f"\n📦 Product #{i}")
-        print(f"🆔 ID: {product.get('id', 'N/A')}")
-        print(f"📝 Name: {product.get('name', 'N/A')}")
-        print(f"💰 Price: ₹{product.get('price', 0)}")
+        # Basic product info
+        name = product.get('name', 'Unknown Product')
+        price = product.get('price', 0)
+        stock = product.get('stock', 0)
         
-        if product.get('discount'):
-            discounted_price = product['price'] * (1 - product['discount'] / 100)
-            print(f"🏷️  Discount: {product['discount']}% (₹{discounted_price:.2f})")
+        # Calculate discounted price if discount exists
+        discount = product.get('discount', 0)
+        if discount and discount > 0:
+            discounted_price = price * (1 - discount / 100)
+            price_text = f"₹{price} (₹{discounted_price:.0f} after {discount}% discount)"
+        else:
+            price_text = f"₹{price}"
         
-        print(f"📦 Stock: {product.get('stock', 0)}")
-        print(f"🏷️  SKU: {product.get('sku', 'N/A')}")
-        
-        # Show description (truncated)
-        description = product.get('description', '')
-        if description:
-            if len(description) > 100 and not show_full_details:
-                description = description[:100] + "..."
-            print(f"📋 Description: {description}")
-        
-        # Show categories
+        # Categories summary
         categories = product.get('categories', [])
-        if categories:
-            category_names = [cat.get('name', 'Unknown') for cat in categories]
-            print(f"🏷️  Categories: {', '.join(category_names)}")
+        category_text = ", ".join([cat.get('name', 'Unknown') for cat in categories]) if categories else "No category"
         
-        # Show attributes
-        attributes = product.get('attributes', [])
-        if attributes:
-            attr_str = ", ".join([f"{attr.get('name', 'Unknown')}: {attr.get('value', 'N/A')}" for attr in attributes])
-            print(f"🔧 Attributes: {attr_str}")
-        
-        # Show variants count
+        # Variants summary
         variants = product.get('variants', [])
-        if variants:
-            print(f"🎨 Variants: {len(variants)} available")
-            if show_full_details:
-                for variant in variants:
-                    print(f"   - {variant.get('name', 'N/A')} (SKU: {variant.get('sku', 'N/A')}, Stock: {variant.get('stock', 0)})")
+        variant_text = f", {len(variants)} variants" if variants else ""
         
-        # Show image count
+        # Images summary
         images = product.get('images', [])
-        if images:
-            print(f"🖼️  Images: {len(images)} available")
+        image_text = f", {len(images)} images" if images else ""
         
-        # Show timestamps
-        created_at = product.get('createdAt', '')
-        updated_at = product.get('updatedAt', '')
-        if created_at:
-            print(f"📅 Created: {created_at}")
-        if updated_at and updated_at != created_at:
-            print(f"📅 Updated: {updated_at}")
+        # Key attributes summary
+        attributes = product.get('attributes', [])
+        key_attrs = []
+        for attr in attributes:
+            attr_name = attr.get('name', '').lower()
+            attr_value = attr.get('value', '')
+            if attr_name in ['color', 'fabric', 'size', 'gender', 'style'] and attr_value:
+                key_attrs.append(f"{attr_name}: {attr_value}")
         
-        print("-"*40)
+        attr_text = f" ({', '.join(key_attrs)})" if key_attrs else ""
+        
+        # Format the summary line
+        summary = f"{i}. {name} - {price_text}, Stock: {stock}, Category: {category_text}{variant_text}{image_text}{attr_text}"
+        print(summary)
     
-    print(f"\n📊 Showing {len(products)} products out of {total_products} total")
+    print(f"\nTotal: {total_products} products")
     if total_pages > 1:
-        print(f"📄 Page {current_page} of {total_pages}")
-    print("="*80)
+        print(f"Page {current_page} of {total_pages}")
+    print("-" * 50)
 
 def export_catalog_to_json(products_data, filename="catalog_export.json"):
     """Export catalog data to JSON file"""
@@ -780,68 +765,631 @@ def search_catalog(query, page=1, limit=10):
     
     return filtered_data
 
-# API-friendly function for catalog operations
-def catalog_ai_api(action="view", **kwargs):
+def display_catalog_summary(products_data):
+    """Display products in a very concise text summary format"""
+    if not products_data or 'products' not in products_data:
+        print("No products found")
+        return
+    
+    products = products_data['products']
+    total_products = products_data.get('total', len(products))
+    
+    print(f"Catalog Summary: {total_products} products total")
+    print("-" * 30)
+    
+    for i, product in enumerate(products, 1):
+        name = product.get('name', 'Unknown')
+        price = product.get('price', 0)
+        stock = product.get('stock', 0)
+        
+        # Get primary category
+        categories = product.get('categories', [])
+        category = categories[0].get('name', 'Uncategorized') if categories else 'Uncategorized'
+        
+        # Get key attributes
+        attributes = product.get('attributes', [])
+        color = next((attr.get('value', '') for attr in attributes if attr.get('name', '').lower() == 'color'), '')
+        
+        # Format compact line
+        color_text = f" ({color})" if color else ""
+        print(f"{i}. {name}{color_text} - ₹{price}, {stock} in stock, {category}")
+    
+    print(f"\nTotal: {total_products} products")
+
+def get_catalog_text_summary(page=1, limit=10, sort_by="createdAt", sort_order="desc"):
     """
-    API-friendly catalog AI function
+    Get catalog as a simple text summary
+    """
+    print("Fetching catalog summary...")
+    
+    # Initialize API
+    api = AgenticAPI()
+    
+    # Authenticate
+    access_token = api.authenticate_user()
+    
+    if not access_token:
+        print("Authentication failed. Cannot fetch catalog.")
+        return None
+    
+    # Fetch products
+    products_data = api.get_seller_products(access_token, page, limit, sort_by, sort_order)
+    
+    if not products_data:
+        print("Failed to fetch products from catalog.")
+        return None
+    
+    # Display as text summary
+    display_catalog_summary(products_data)
+    
+    return products_data
+
+# AI-powered catalog summary functions
+
+def generate_ai_catalog_summary(products_data):
+    """Generate AI-powered catalog summary using Gemini"""
+    try:
+        # Configure Gemini
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+        if not google_api_key or google_api_key == "your-google-api-key-here":
+            print("⚠️  GOOGLE_API_KEY not configured, using fallback")
+            return generate_basic_catalog_summary(products_data)
+        
+        # Prepare data for AI analysis
+        products = products_data.get('products', [])
+        total_products = products_data.get('total', len(products))
+        
+        # Create a structured summary of the products
+        product_summary = []
+        for i, product in enumerate(products, 1):
+            summary_item = {
+                "index": i,
+                "name": product.get('name', 'Unknown'),
+                "price": product.get('price', 0),
+                "stock": product.get('stock', 0),
+                "categories": [cat.get('name', 'Unknown') for cat in product.get('categories', [])],
+                "attributes": {attr.get('name', 'Unknown'): attr.get('value', 'Unknown') for attr in product.get('attributes', [])},
+                "variants_count": len(product.get('variants', [])),
+                "images_count": len(product.get('images', []))
+            }
+            product_summary.append(summary_item)
+        
+        # Create prompt for AI summary
+        prompt = f"""
+        You are an intelligent e-commerce catalog analyst. Analyze the following product catalog data and provide a comprehensive text summary.
+
+        Catalog Data:
+        - Total Products: {total_products}
+        - Products Shown: {len(products)}
+        
+        Product Details:
+        {json.dumps(product_summary, indent=2)}
+
+        Please provide a comprehensive catalog summary that includes:
+        1. Overall catalog overview (total products, categories)
+        2. Price range analysis
+        3. Stock availability summary
+        4. Popular categories and product types
+        5. Key insights and trends
+        6. Concise product listings in text format
+
+        Format the response as a readable text summary suitable for business reporting.
+        Keep it concise but informative. Use bullet points where appropriate.
+        Make it professional and suitable for business analysis.
+        """
+        
+        # Generate summary using Gemini
+        print("🤖 Generating AI catalog summary...")
+        response = model.generate_content(prompt)
+        
+        if response and response.text:
+            return response.text.strip()
+        else:
+            print("❌ AI response was empty, using fallback")
+            return generate_basic_catalog_summary(products_data)
+            
+    except Exception as e:
+        print(f"❌ Error generating AI summary: {e}")
+        print("Using fallback summary...")
+        return generate_basic_catalog_summary(products_data)
+
+def generate_basic_catalog_summary(products_data):
+    """Generate basic catalog summary as fallback"""
+    if not products_data or 'products' not in products_data:
+        return "No products found in catalog"
+    
+    products = products_data['products']
+    total_products = products_data.get('total', len(products))
+    
+    # Basic analysis
+    categories = {}
+    total_stock = 0
+    price_range = {"min": float('inf'), "max": 0}
+    
+    for product in products:
+        # Count categories
+        for cat in product.get('categories', []):
+            cat_name = cat.get('name', 'Unknown')
+            categories[cat_name] = categories.get(cat_name, 0) + 1
+        
+        # Calculate stock and price range
+        stock = product.get('stock', 0)
+        price = product.get('price', 0)
+        
+        total_stock += stock
+        if price > 0:
+            price_range["min"] = min(price_range["min"], price)
+            price_range["max"] = max(price_range["max"], price)
+    
+    # Generate summary
+    summary = f"""CATALOG SUMMARY REPORT
+    
+📊 OVERVIEW:
+- Total Products: {total_products}
+- Products Displayed: {len(products)}
+- Total Stock Available: {total_stock}
+
+💰 PRICE ANALYSIS:
+- Price Range: ₹{price_range["min"]:.0f} - ₹{price_range["max"]:.0f}
+- Average Price: ₹{(price_range["min"] + price_range["max"]) / 2:.0f}
+
+🏷️ CATEGORY BREAKDOWN:
+"""
+    
+    for category, count in sorted(categories.items(), key=lambda x: x[1], reverse=True):
+        summary += f"- {category}: {count} products\n"
+    
+    summary += "\n📦 PRODUCT LISTINGS:\n"
+    for i, product in enumerate(products, 1):
+        name = product.get('name', 'Unknown')
+        price = product.get('price', 0)
+        stock = product.get('stock', 0)
+        
+        # Get primary category
+        categories_list = product.get('categories', [])
+        category = categories_list[0].get('name', 'Uncategorized') if categories_list else 'Uncategorized'
+        
+        summary += f"{i}. {name} - ₹{price}, Stock: {stock}, Category: {category}\n"
+    
+    return summary
+
+def get_ai_catalog_summary(page=1, limit=10, sort_by="createdAt", sort_order="desc"):
+    """
+    Get AI-powered catalog summary
+    """
+    print("🤖 AI Catalog Summary - Fetching and analyzing your catalog...")
+    
+    # Initialize API
+    api = AgenticAPI()
+    
+    # Authenticate
+    print("🔐 Authenticating...")
+    access_token = api.authenticate_user()
+    
+    if not access_token:
+        print("❌ Authentication failed. Cannot fetch catalog.")
+        return None
+    
+    # Fetch products
+    print(f"📡 Fetching products (Page {page}, Limit {limit})...")
+    products_data = api.get_seller_products(access_token, page, limit, sort_by, sort_order)
+    
+    if not products_data:
+        print("❌ Failed to fetch products from catalog.")
+        return None
+    
+    # Generate AI summary
+    ai_summary = generate_ai_catalog_summary(products_data)
+    
+    if ai_summary:
+        print("\n" + "="*60)
+        print("🤖 AI CATALOG SUMMARY")
+        print("="*60)
+        print(ai_summary)
+        print("="*60)
+    
+    return {
+        "products_data": products_data,
+        "ai_summary": ai_summary
+    }
+
+def catalog_ai_api(action="view", page=1, limit=10, sort_by="createdAt", sort_order="desc", show_full_details=False, query=None):
+    """
+    API wrapper for catalog operations
     
     Args:
         action (str): Action to perform ('view', 'export_json', 'export_csv', 'search')
-        **kwargs: Additional parameters for each action
+        page (int): Page number for pagination
+        limit (int): Number of products per page
+        sort_by (str): Field to sort by
+        sort_order (str): Sort order
+        show_full_details (bool): Show full product details
+        query (str): Search query for search action
+    
+    Returns:
+        dict: API response with success, message, and data
     """
     try:
+        # Initialize API
+        api = AgenticAPI()
+        
+        # Authenticate
+        access_token = api.authenticate_user()
+        
+        if not access_token:
+            return {
+                "success": False,
+                "message": "Authentication failed. Cannot access catalog.",
+                "data": None
+            }
+        
         if action == "view":
+            # Fetch products
+            products_data = api.get_seller_products(access_token, page, limit, sort_by, sort_order)
+            
+            if not products_data:
+                return {
+                    "success": False,
+                    "message": "Failed to fetch products from catalog.",
+                    "data": None
+                }
+            
             return {
                 "success": True,
-                "message": "Catalog viewed successfully",
-                "data": get_catalog_ai(**kwargs)
+                "message": "Catalog retrieved successfully",
+                "data": products_data
             }
+        
         elif action == "export_json":
-            data = get_catalog_ai(export_format='json', **kwargs)
+            # Fetch products and export to JSON
+            products_data = api.get_seller_products(access_token, page, limit, sort_by, sort_order)
+            
+            if not products_data:
+                return {
+                    "success": False,
+                    "message": "Failed to fetch products for export.",
+                    "data": None
+                }
+            
+            filename = f"catalog_export_{page}_{limit}.json"
+            export_catalog_to_json(products_data, filename)
+            
             return {
                 "success": True,
-                "message": "Catalog exported to JSON successfully",
-                "data": data
+                "message": f"Catalog exported to {filename}",
+                "data": {"filename": filename, "products": products_data}
             }
+        
         elif action == "export_csv":
-            data = get_catalog_ai(export_format='csv', **kwargs)
+            # Fetch products and export to CSV
+            products_data = api.get_seller_products(access_token, page, limit, sort_by, sort_order)
+            
+            if not products_data:
+                return {
+                    "success": False,
+                    "message": "Failed to fetch products for export.",
+                    "data": None
+                }
+            
+            filename = f"catalog_export_{page}_{limit}.csv"
+            export_catalog_to_csv(products_data, filename)
+            
             return {
                 "success": True,
-                "message": "Catalog exported to CSV successfully",
-                "data": data
+                "message": f"Catalog exported to {filename}",
+                "data": {"filename": filename, "products": products_data}
             }
+        
         elif action == "search":
-            query = kwargs.get('query', '')
             if not query:
                 return {
                     "success": False,
-                    "message": "Search query is required"
+                    "message": "Search query is required for search action.",
+                    "data": None
                 }
-            data = search_catalog(query, kwargs.get('page', 1), kwargs.get('limit', 10))
-            return {
-                "success": True,
-                "message": f"Search completed for '{query}'",
-                "data": data
-            }
+            
+            # Use the search function with the query
+            result = search_products_api(query)
+            return result
+        
         else:
             return {
                 "success": False,
-                "message": f"Unknown action: {action}"
+                "message": f"Unknown action: {action}. Supported actions: view, export_json, export_csv, search",
+                "data": None
             }
+        
     except Exception as e:
         return {
             "success": False,
-            "message": "Internal error in catalog AI",
-            "error": str(e)
+            "message": "Internal server error in catalog API.",
+            "error": str(e),
+            "data": None
         }
 
-# if __name__ == "__main__":
-#     import sys
-#     if len(sys.argv) > 1 and sys.argv[1] == "search":
-#         if len(sys.argv) > 2:
-#             query = " ".join(sys.argv[2:])
-#             search_products_main(query)
-#         else:
-#             search_products_main()
-#     else:
-#         add_product()
+def get_ai_catalog_summary_with_context(text_input, page=1, limit=10, sort_by="createdAt", sort_order="desc"):
+    """
+    Generate AI catalog summary with additional text context
+    
+    Args:
+        text_input (str): User text input for context
+        page (int): Page number for pagination
+        limit (int): Number of products per page
+        sort_by (str): Field to sort by
+        sort_order (str): Sort order
+    
+    Returns:
+        dict: AI summary with text context
+    """
+    try:
+        # Initialize API and get products
+        api = AgenticAPI()
+        access_token = api.authenticate_user()
+        
+        if not access_token:
+            return None
+        
+        # Fetch products
+        products_data = api.get_seller_products(access_token, page, limit, sort_by, sort_order)
+        
+        if not products_data:
+            return None
+        
+        # Generate AI summary with text context
+        ai_summary = generate_ai_catalog_summary_with_context(products_data, text_input)
+        
+        if ai_summary:
+            return {
+                "ai_summary": ai_summary,
+                "products_data": products_data,
+                "text_context": text_input,
+                "page": page,
+                "limit": limit,
+                "sort_by": sort_by,
+                "sort_order": sort_order
+            }
+        else:
+            # Fallback to basic summary
+            basic_summary = generate_basic_catalog_summary(products_data)
+            return {
+                "basic_summary": basic_summary,
+                "products_data": products_data,
+                "text_context": text_input,
+                "page": page,
+                "limit": limit,
+                "sort_by": sort_by,
+                "sort_order": sort_order
+            }
+        
+    except Exception as e:
+        print(f"❌ Error generating AI catalog summary with context: {e}")
+        return None
+
+def generate_ai_catalog_summary_with_context(products_data, text_input):
+    """Generate AI-powered catalog summary with user text context"""
+    try:
+        # Import Gemini
+        import google.generativeai as genai
+        from dotenv import load_dotenv
+        
+        load_dotenv()
+        
+        # Configure Gemini
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+        if not google_api_key or google_api_key == "your-google-api-key-here":
+            print("⚠️  GOOGLE_API_KEY not configured, using fallback")
+            return None
+        
+        genai.configure(api_key=google_api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Prepare data for AI analysis
+        products = products_data.get('products', [])
+        total_products = products_data.get('total', len(products))
+        
+        # Create a structured summary of the products
+        product_summary = []
+        for i, product in enumerate(products, 1):
+            summary_item = {
+                "index": i,
+                "name": product.get('name', 'Unknown'),
+                "price": product.get('price', 0),
+                "stock": product.get('stock', 0),
+                "categories": [cat.get('name', 'Unknown') for cat in product.get('categories', [])],
+                "attributes": {attr.get('name', 'Unknown'): attr.get('value', 'Unknown') for attr in product.get('attributes', [])},
+                "variants_count": len(product.get('variants', [])),
+                "images_count": len(product.get('images', []))
+            }
+            product_summary.append(summary_item)
+        
+        # Create prompt for AI summary with text context
+        prompt = f"""
+        You are an intelligent e-commerce catalog analyst. Analyze the following product catalog data and provide a comprehensive text summary, considering the user's specific context and requirements.
+
+        User Context/Request: "{text_input}"
+
+        Catalog Data:
+        - Total Products: {total_products}
+        - Products Shown: {len(products)}
+        
+        Product Details:
+        {json.dumps(product_summary, indent=2)}
+
+        Please provide a comprehensive catalog summary that addresses the user's specific context and includes:
+        1. Response to the user's specific request/context
+        2. Overall catalog overview relevant to the user's needs
+        3. Price range analysis in context of the user's request
+        4. Stock availability summary
+        5. Product recommendations based on user context
+        6. Key insights and trends related to the user's needs
+        7. Actionable recommendations tailored to the user's request
+
+        Format the response as a readable text summary suitable for business reporting.
+        Keep it concise but informative and directly address the user's context.
+        Use bullet points where appropriate.
+        """
+        
+        # Generate summary using Gemini
+        response = model.generate_content(prompt)
+        
+        if response and response.text:
+            return response.text.strip()
+        else:
+            return None
+            
+    except ImportError:
+        print("⚠️  Gemini libraries not available")
+        return None
+    except Exception as e:
+        print(f"❌ Error generating AI summary with context: {e}")
+        return None
+
+def analyze_catalog_text(text_input, page=1, limit=10, sort_by="createdAt", sort_order="desc"):
+    """
+    Analyze text input in relation to catalog data
+    
+    Args:
+        text_input (str): User text input to analyze
+        page (int): Page number for pagination
+        limit (int): Number of products per page
+        sort_by (str): Field to sort by
+        sort_order (str): Sort order
+    
+    Returns:
+        dict: Analysis results
+    """
+    try:
+        # Initialize API and get products
+        api = AgenticAPI()
+        access_token = api.authenticate_user()
+        
+        if not access_token:
+            return None
+        
+        # Fetch products
+        products_data = api.get_seller_products(access_token, page, limit, sort_by, sort_order)
+        
+        if not products_data:
+            return None
+        
+        # Analyze text in context of catalog
+        analysis_result = perform_text_analysis(text_input, products_data)
+        
+        return {
+            "analysis": analysis_result,
+            "products_data": products_data,
+            "input_text": text_input,
+            "page": page,
+            "limit": limit,
+            "sort_by": sort_by,
+            "sort_order": sort_order
+        }
+        
+    except Exception as e:
+        print(f"❌ Error analyzing catalog text: {e}")
+        return None
+
+def perform_text_analysis(text_input, products_data):
+    """Perform AI-powered text analysis in context of catalog"""
+    try:
+        # Import Gemini
+        import google.generativeai as genai
+        from dotenv import load_dotenv
+        
+        load_dotenv()
+        
+        # Configure Gemini
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+        if not google_api_key or google_api_key == "your-google-api-key-here":
+            return perform_basic_text_analysis(text_input, products_data)
+        
+        genai.configure(api_key=google_api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Prepare data for analysis
+        products = products_data.get('products', [])
+        total_products = products_data.get('total', len(products))
+        
+        # Create prompt for text analysis
+        prompt = f"""
+        You are an intelligent e-commerce text analyzer. Analyze the following user text input in the context of the provided catalog data.
+
+        User Text Input: "{text_input}"
+
+        Catalog Context:
+        - Total Products: {total_products}
+        - Products Available: {len(products)}
+        - Product Types: {[p.get('name', 'Unknown') for p in products[:5]]}
+        - Price Range: ₹{min([int(p.get('price', 0)) for p in products if p.get('price')])} - ₹{max([int(p.get('price', 0)) for p in products if p.get('price')])}
+
+        Please analyze the text and provide:
+        1. Intent Analysis: What is the user trying to accomplish?
+        2. Catalog Relevance: How does this relate to the current catalog?
+        3. Recommendations: What actions should be taken based on this input?
+        4. Matching Products: Which products in the catalog match this input?
+        5. Business Insights: What business insights can be derived?
+        6. Next Steps: What should the user do next?
+
+        Format the response as a structured analysis with clear sections.
+        """
+        
+        # Generate analysis using Gemini
+        response = model.generate_content(prompt)
+        
+        if response and response.text:
+            return response.text.strip()
+        else:
+            return perform_basic_text_analysis(text_input, products_data)
+            
+    except ImportError:
+        return perform_basic_text_analysis(text_input, products_data)
+    except Exception as e:
+        print(f"❌ Error performing text analysis: {e}")
+        return perform_basic_text_analysis(text_input, products_data)
+
+def perform_basic_text_analysis(text_input, products_data):
+    """Perform basic text analysis without AI"""
+    products = products_data.get('products', [])
+    total_products = products_data.get('total', len(products))
+    
+    # Basic keyword matching
+    keywords = text_input.lower().split()
+    matching_products = []
+    
+    for product in products:
+        product_name = product.get('name', '').lower()
+        product_desc = product.get('description', '').lower()
+        
+        for keyword in keywords:
+            if keyword in product_name or keyword in product_desc:
+                matching_products.append(product)
+                break
+    
+    analysis = f"""
+    Basic Text Analysis Results:
+    
+    Input: "{text_input}"
+    
+    1. Intent Analysis: 
+       - Keywords found: {', '.join(keywords)}
+       - Potential product search or inquiry
+    
+    2. Catalog Relevance:
+       - Total products in catalog: {total_products}
+       - Matching products found: {len(matching_products)}
+    
+    3. Matching Products:
+       {chr(10).join([f"   - {p.get('name', 'Unknown')} (₹{p.get('price', 0)})" for p in matching_products[:5]])}
+    
+    4. Recommendations:
+       - Review matching products for relevance
+       - Consider expanding search terms
+       - Add more products if no matches found
+    
+    5. Next Steps:
+       - Refine search criteria
+       - Add more product details
+       - Consider product categorization
+    """
+    
+    return analysis
