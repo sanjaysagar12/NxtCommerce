@@ -6,7 +6,10 @@ import {
   DocumentTextIcon,
   ArrowPathIcon,
   MicrophoneIcon,
-  StopIcon
+  StopIcon,
+  LanguageIcon,
+  SpeakerWaveIcon,
+  ChevronDownIcon
 } from "@heroicons/react/24/outline";
 
 // Simple markdown renderer for basic formatting
@@ -65,7 +68,30 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Supported languages
+  const languages = [
+    { code: 'en', name: 'English', flag: '🇺🇸' },
+    {code:"ta", name:"Tamil", flag:"🇮🇳"},
+    { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
+    { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+    { code: 'fr', name: 'French', flag: '🇫🇷' },
+    { code: 'de', name: 'German', flag: '🇩🇪' },
+    { code: 'it', name: 'Italian', flag: '🇮🇹' },
+    { code: 'pt', name: 'Portuguese', flag: '🇵🇹' },
+    { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
+    { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+    { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
+    { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
+    { code: 'ru', name: 'Russian', flag: '🇷🇺' }
+  ];
 
   // Initialize speech recognition
   useEffect(() => {
@@ -76,35 +102,88 @@ export default function CatalogPage() {
       
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'en-US';
+      recognitionRef.current.lang = selectedLanguage === 'en' ? 'en-US' : 
+                                    selectedLanguage === 'ta' ? 'ta-IN' :
+                                  selectedLanguage === 'hi' ? 'hi-IN' :
+                                  selectedLanguage === 'es' ? 'es-ES' :
+                                  selectedLanguage === 'fr' ? 'fr-FR' :
+                                  selectedLanguage === 'de' ? 'de-DE' :
+                                  selectedLanguage === 'it' ? 'it-IT' :
+                                  selectedLanguage === 'pt' ? 'pt-PT' :
+                                  selectedLanguage === 'ja' ? 'ja-JP' :
+                                  selectedLanguage === 'ko' ? 'ko-KR' :
+                                  selectedLanguage === 'zh' ? 'zh-CN' :
+                                  selectedLanguage === 'ar' ? 'ar-SA' :
+                                  selectedLanguage === 'ru' ? 'ru-RU' : 'en-US';
 
       recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setTextInput(transcript);
         setIsListening(false);
+        setSpeechError(null);
       };
 
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
+        
+        // Handle different types of speech recognition errors
+        switch(event.error) {
+          case 'no-speech':
+            setSpeechError('No speech detected. Please try speaking again.');
+            break;
+          case 'audio-capture':
+            setSpeechError('Audio capture failed. Please check your microphone.');
+            break;
+          case 'not-allowed':
+            setSpeechError('Microphone access denied. Please allow microphone access.');
+            break;
+          case 'network':
+            setSpeechError('Network error. Please check your connection.');
+            break;
+          case 'aborted':
+            setSpeechError('Speech recognition was aborted.');
+            break;
+          default:
+            setSpeechError(`Speech recognition error: ${event.error}`);
+        }
+        
+        // Clear error after 5 seconds
+        setTimeout(() => setSpeechError(null), 5000);
       };
 
       recognitionRef.current.onend = () => {
         setIsListening(false);
+        // Don't set error here as it might be a normal end
+      };
+
+      recognitionRef.current.onstart = () => {
+        setSpeechError(null);
       };
     }
-  }, []);
+  }, [selectedLanguage]);
 
   const startListening = () => {
     if (recognitionRef.current && speechSupported) {
+      setSpeechError(null);
       setIsListening(true);
-      recognitionRef.current.start();
+      try {
+        recognitionRef.current.start();
+      } catch (error) {
+        console.error('Error starting speech recognition:', error);
+        setIsListening(false);
+        setSpeechError('Failed to start speech recognition. Please try again.');
+      }
     }
   };
 
   const stopListening = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {
+        console.error('Error stopping speech recognition:', error);
+      }
       setIsListening(false);
     }
   };
@@ -117,7 +196,34 @@ export default function CatalogPage() {
       return;
     }
     
-    const userMessage = { role: 'user', content: textInput };
+    let processedText = textInput;
+    
+    // Translate to English if not already in English
+    if (selectedLanguage !== 'en') {
+      setIsTranslating(true);
+      try {
+        const translateResponse = await fetch("http://localhost:5000/translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: textInput,
+            target_language: "en",
+            source_language: selectedLanguage
+          }),
+        });
+        
+        const translateData = await translateResponse.json();
+        if (translateData.success) {
+          processedText = translateData.translated_text;
+        }
+      } catch (error) {
+        console.error("Translation error:", error);
+      } finally {
+        setIsTranslating(false);
+      }
+    }
+    
+    const userMessage = { role: 'user', content: textInput, language: selectedLanguage };
     setMessages(prev => [...prev, userMessage]);
     setTextInput("");
     setLoading(true);
@@ -127,7 +233,7 @@ export default function CatalogPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: textInput,
+          text: processedText, // Use translated text for processing
           action: "summary",
           page: 1,
           limit: 10,
@@ -139,27 +245,102 @@ export default function CatalogPage() {
       const data = await response.json();
       
       if (data.success) {
+        let aiResponse = data.text_summary || "No summary available";
+        
+        // Translate AI response back to user's language if not English
+        if (selectedLanguage !== 'en') {
+          try {
+            const translateResponse = await fetch("http://localhost:5000/translate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text: aiResponse,
+                target_language: selectedLanguage,
+                source_language: "en"
+              }),
+            });
+            
+            const translateData = await translateResponse.json();
+            if (translateData.success) {
+              aiResponse = translateData.translated_text;
+            }
+          } catch (error) {
+            console.error("Translation error:", error);
+          }
+        }
+        
         const aiMessage = { 
           role: 'assistant', 
-          content: data.text_summary || "No summary available",
+          content: aiResponse,
+          language: selectedLanguage,
           fullData: data
         };
         setMessages(prev => [...prev, aiMessage]);
       } else {
-        const errorMessage = {
+        let errorMessage = data.message || "Failed to process text.";
+        
+        // Translate error message if needed
+        if (selectedLanguage !== 'en') {
+          try {
+            const translateResponse = await fetch("http://localhost:5000/translate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text: errorMessage,
+                target_language: selectedLanguage,
+                source_language: "en"
+              }),
+            });
+            
+            const translateData = await translateResponse.json();
+            if (translateData.success) {
+              errorMessage = translateData.translated_text;
+            }
+          } catch (error) {
+            console.error("Translation error:", error);
+          }
+        }
+        
+        const errorMsg = {
           role: 'assistant',
-          content: data.message || "Failed to process text.",
+          content: errorMessage,
+          language: selectedLanguage,
           isError: true
         };
-        setMessages(prev => [...prev, errorMessage]);
+        setMessages(prev => [...prev, errorMsg]);
       }
     } catch (err: any) {
-      const errorMessage = {
+      let errorMessage = err.message || "An error occurred while processing text.";
+      
+      // Translate error message if needed
+      if (selectedLanguage !== 'en') {
+        try {
+          const translateResponse = await fetch("http://localhost:5000/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: errorMessage,
+              target_language: selectedLanguage,
+              source_language: "en"
+            }),
+          });
+          
+          const translateData = await translateResponse.json();
+          if (translateData.success) {
+            errorMessage = translateData.translated_text;
+          }
+        } catch (error) {
+          console.error("Translation error:", error);
+        }
+      }
+      
+      const errorMsg = {
         role: 'assistant',
-        content: err.message || "An error occurred while processing text.",
+        content: errorMessage,
+        language: selectedLanguage,
         isError: true
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, errorMsg]);
     } finally {
       setLoading(false);
     }
@@ -167,6 +348,37 @@ export default function CatalogPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+  };
+
+  // Text-to-speech function
+  const playTextToSpeech = async (text: string) => {
+    if (isPlayingAudio) return;
+    
+    try {
+      setIsPlayingAudio(true);
+      const response = await fetch("http://localhost:5000/text-to-audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: text,
+          language: selectedLanguage
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.success && data.audio_file_id) {
+        // Play the audio
+        const audioUrl = `http://localhost:5000/download-audio/${data.audio_file_id}`;
+        if (audioRef.current) {
+          audioRef.current.src = audioUrl;
+          audioRef.current.play();
+        }
+      }
+    } catch (error) {
+      console.error("Text-to-speech error:", error);
+    } finally {
+      setIsPlayingAudio(false);
+    }
   };
 
   const examplePrompts = [
@@ -198,6 +410,41 @@ export default function CatalogPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Language Selector */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                  className="flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                >
+                  <LanguageIcon className="w-4 h-4" />
+                  <span>{languages.find(l => l.code === selectedLanguage)?.flag}</span>
+                  <span className="hidden sm:inline">{languages.find(l => l.code === selectedLanguage)?.name}</span>
+                  <ChevronDownIcon className="w-3 h-3" />
+                </button>
+                
+                {showLanguageDropdown && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                    <div className="p-2 max-h-60 overflow-y-auto">
+                      {languages.map((lang) => (
+                        <button
+                          key={lang.code}
+                          onClick={() => {
+                            setSelectedLanguage(lang.code);
+                            setShowLanguageDropdown(false);
+                          }}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                            selectedLanguage === lang.code ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          <span className="text-lg">{lang.flag}</span>
+                          <span className="text-sm">{lang.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               <div className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium">
                 <span className="w-2 h-2 bg-green-500 rounded-full inline-block mr-2"></span>
                 Online
@@ -280,8 +527,24 @@ export default function CatalogPage() {
                         {message.isError ? (
                           <p>{message.content}</p>
                         ) : (
-                          <div className="prose dark:prose-invert max-w-none prose-sm">
-                            {renderMarkdown(message.content)}
+                          <div>
+                            <div className="prose dark:prose-invert max-w-none prose-sm">
+                              {renderMarkdown(message.content)}
+                            </div>
+                            {/* Text-to-speech button for AI responses */}
+                            <div className="mt-3 flex items-center gap-2">
+                              <button
+                                onClick={() => playTextToSpeech(message.content)}
+                                disabled={isPlayingAudio}
+                                className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-xs"
+                              >
+                                <SpeakerWaveIcon className="w-3 h-3" />
+                                {isPlayingAudio ? 'Playing...' : 'Listen'}
+                              </button>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {languages.find(l => l.code === message.language)?.name}
+                              </span>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -308,7 +571,7 @@ export default function CatalogPage() {
                     <div className="flex items-center gap-3">
                       <ArrowPathIcon className="w-5 h-5 animate-spin text-blue-600" />
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        Processing your request...
+                        {isTranslating ? 'Translating...' : 'Processing your request...'}
                       </span>
                     </div>
                   </div>
@@ -319,6 +582,13 @@ export default function CatalogPage() {
 
           {/* Professional Input Area */}
           <div className="border-t border-gray-200/50 dark:border-gray-700/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm px-6 py-4">
+            {/* Speech Error Display */}
+            {speechError && (
+              <div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">{speechError}</p>
+              </div>
+            )}
+            
             <form onSubmit={handleProcessText} className="flex gap-3">
               <div className="flex-1 relative">
                 <input
@@ -378,6 +648,9 @@ export default function CatalogPage() {
           </div>
         </div>
       </div>
+
+      {/* Hidden audio element for text-to-speech */}
+      <audio ref={audioRef} onEnded={() => setIsPlayingAudio(false)} />
     </div>
   );
 }
