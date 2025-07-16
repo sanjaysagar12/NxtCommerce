@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   SparklesIcon,
   DocumentTextIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  MicrophoneIcon,
+  StopIcon
 } from "@heroicons/react/24/outline";
 
 // Simple markdown renderer for basic formatting
@@ -61,6 +63,51 @@ export default function CatalogPage() {
   const [textInput, setTextInput] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+      setSpeechSupported(true);
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setTextInput(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, []);
+
+  const startListening = () => {
+    if (recognitionRef.current && speechSupported) {
+      setIsListening(true);
+      recognitionRef.current.start();
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+  };
 
   const handleProcessText = async (e?: React.FormEvent) => {
     console.log("Processing text:", textInput);
@@ -132,7 +179,7 @@ export default function CatalogPage() {
   ];
 
   return (
-    <div className=" bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col">
       {/* Professional Header */}
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-10">
         <div className="px-6 py-4">
@@ -283,6 +330,33 @@ export default function CatalogPage() {
                   disabled={loading}
                 />
               </div>
+              
+              {/* Voice Input Button */}
+              {speechSupported && (
+                <button
+                  type="button"
+                  onClick={isListening ? stopListening : startListening}
+                  disabled={loading}
+                  className={`px-4 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl disabled:shadow-none flex items-center gap-2 font-medium ${
+                    isListening
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
+                      : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
+                  }`}
+                >
+                  {isListening ? (
+                    <>
+                      <StopIcon className="w-5 h-5" />
+                      <span className="hidden sm:inline">Stop</span>
+                    </>
+                  ) : (
+                    <>
+                      <MicrophoneIcon className="w-5 h-5" />
+                      <span className="hidden sm:inline">Speak</span>
+                    </>
+                  )}
+                </button>
+              )}
+              
               <button
                 type="submit"
                 disabled={loading || !textInput.trim()}
