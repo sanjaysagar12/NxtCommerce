@@ -374,16 +374,81 @@ def process_catalog_text():
             )
             
             if result:
-                # Extract only the text summary part
+                # Extract only the text summary part and enhance with inventory details
                 text_summary = ""
                 if isinstance(result, dict):
-                    text_summary = result.get('ai_summary', result.get('text_summary', str(result)))
+                    # Get AI summary first
+                    ai_summary = result.get('ai_summary', result.get('text_summary', ''))
+                    
+                    # Add inventory analysis
+                    products_data = result.get('products_data', {})
+                    if products_data and 'products' in products_data:
+                        products = products_data['products']
+                        
+                        # Calculate inventory statistics
+                        total_products = len(products)
+                        total_stock = sum(int(p.get('stock', 0)) for p in products)
+                        low_stock_products = [p for p in products if int(p.get('stock', 0)) < 10]
+                        high_stock_products = [p for p in products if int(p.get('stock', 0)) > 50]
+                        out_of_stock = [p for p in products if int(p.get('stock', 0)) == 0]
+                        
+                        # Calculate total inventory value
+                        total_value = sum(int(p.get('price', 0)) * int(p.get('stock', 0)) for p in products)
+                        
+                        # Create inventory summary
+                        inventory_summary = f"\n\n📊 INVENTORY ANALYSIS:\n"
+                        inventory_summary += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        inventory_summary += f"📦 Total Products: {total_products}\n"
+                        inventory_summary += f"📈 Total Stock Units: {total_stock}\n"
+                        inventory_summary += f"💰 Total Inventory Value: ₹{total_value:,}\n"
+                        inventory_summary += f"📊 Average Stock per Product: {total_stock//total_products if total_products > 0 else 0}\n\n"
+                        
+                        # Stock level breakdown
+                        inventory_summary += f"📋 STOCK LEVEL BREAKDOWN:\n"
+                        inventory_summary += f"🔴 Out of Stock: {len(out_of_stock)} products\n"
+                        inventory_summary += f"🟡 Low Stock (<10): {len(low_stock_products)} products\n"
+                        inventory_summary += f"🟢 High Stock (>50): {len(high_stock_products)} products\n"
+                        inventory_summary += f"🔵 Normal Stock (10-50): {total_products - len(out_of_stock) - len(low_stock_products) - len(high_stock_products)} products\n\n"
+                        
+                        # Detailed product stock list
+                        inventory_summary += f"📝 DETAILED STOCK STATUS:\n"
+                        for i, product in enumerate(products, 1):
+                            stock = int(product.get('stock', 0))
+                            price = int(product.get('price', 0))
+                            name = product.get('name', 'N/A')
+                            
+                            # Stock status indicator
+                            if stock == 0:
+                                status = "🔴 OUT OF STOCK"
+                            elif stock < 10:
+                                status = "🟡 LOW STOCK"
+                            elif stock > 50:
+                                status = "🟢 HIGH STOCK"
+                            else:
+                                status = "🔵 NORMAL"
+                            
+                            inventory_summary += f"{i}. {name}\n"
+                            inventory_summary += f"   Stock: {stock} units | Price: ₹{price} | Value: ₹{stock * price:,} | {status}\n"
+                        
+                        # If user mentions selling offline, provide adjustment guidance
+                        if 'sold' in text_input.lower() or 'offline' in text_input.lower() or 'sell' in text_input.lower():
+                            inventory_summary += f"\n\n💡 OFFLINE SALES ADJUSTMENT GUIDE:\n"
+                            inventory_summary += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            inventory_summary += f"If you've sold products offline, here's your current stock:\n"
+                            inventory_summary += f"• Update stock levels by deducting offline sales\n"
+                            inventory_summary += f"• Current total: {total_stock} units across all products\n"
+                            inventory_summary += f"• Monitor low stock items for reordering\n"
+                            inventory_summary += f"• Consider updating inventory management system\n"
+                        
+                        text_summary = ai_summary + inventory_summary
+                    else:
+                        text_summary = ai_summary or str(result)
                 else:
                     text_summary = str(result)
                 
                 return jsonify({
                     "success": True,
-                    "message": "AI catalog summary generated successfully",
+                    "message": "AI catalog summary with inventory analysis generated successfully",
                     "text_summary": text_summary,
                     "processed_text": text_input
                 }), 200
