@@ -132,52 +132,76 @@ export default function CatalogPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600 rounded-lg">
-              <DocumentTextIcon className="w-5 h-5 text-white" />
+    <div className="h-screen bg-gradient-to-br from-slate-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex flex-col">
+      {/* Professional Header */}
+      <header className="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg">
+                <DocumentTextIcon className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-200 bg-clip-text text-transparent">
+                  Catalog AI Assistant
+                </h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                  Professional Inventory Management Solution
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                Catalog AI Assistant
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Your intelligent inventory assistant
-              </p>
+            <div className="flex items-center gap-2">
+              <div className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium">
+                <span className="w-2 h-2 bg-green-500 rounded-full inline-block mr-2"></span>
+                Online
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Chat Container */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-[600px] flex flex-col">
+      {/* Chat Container - Full Screen */}
+      <div className="flex-1 flex">
+        <div className="w-full max-w-6xl mx-auto flex flex-col h-full">
           
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
             {messages.length === 0 && (
-              <div className="text-center py-8">
-                <DocumentTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  Welcome to Catalog AI
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  Ask me anything about your inventory, products, or catalog management.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl mx-auto">
-                  {examplePrompts.map((prompt, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setTextInput(prompt)}
-                      className="p-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left"
-                      disabled={loading}
-                    >
-                      "{prompt}"
-                    </button>
-                  ))}
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center max-w-3xl mx-auto">
+                  <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-xl mb-8 mx-auto w-fit">
+                    <DocumentTextIcon className="w-16 h-16 text-white mx-auto" />
+                  </div>
+                  <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+                    Welcome to Catalog AI
+                  </h3>
+                  <p className="text-lg text-gray-600 dark:text-gray-400 mb-12 leading-relaxed">
+                    Your intelligent inventory management assistant. Ask me anything about your products, stock levels, sales analytics, or catalog operations.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+                    {examplePrompts.map((prompt, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setTextInput(prompt)}
+                        className="p-4 text-left bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 group"
+                        disabled={loading}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors">
+                            <SparklesIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                              {prompt}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Try this example query
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -187,26 +211,40 @@ export default function CatalogPage() {
                 key={index}
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div
-                  className={`max-w-[80%] px-4 py-3 rounded-lg ${
-                    message.role === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : message.isError
-                      ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                  }`}
-                >
-                  {message.role === 'user' ? (
-                    <p className="text-sm">{message.content}</p>
-                  ) : (
-                    <div className="text-sm">
-                      {message.isError ? (
-                        <p>{message.content}</p>
-                      ) : (
-                        <div className="prose dark:prose-invert max-w-none prose-sm">
-                          {renderMarkdown(message.content)}
-                        </div>
-                      )}
+                <div className="flex items-start gap-3 max-w-[85%]">
+                  {message.role === 'assistant' && (
+                    <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-md flex-shrink-0">
+                      <DocumentTextIcon className="w-5 h-5 text-white" />
+                    </div>
+                  )}
+                  <div
+                    className={`px-6 py-4 rounded-2xl shadow-sm ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
+                        : message.isError
+                        ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    {message.role === 'user' ? (
+                      <p className="text-sm leading-relaxed">{message.content}</p>
+                    ) : (
+                      <div className="text-sm leading-relaxed">
+                        {message.isError ? (
+                          <p>{message.content}</p>
+                        ) : (
+                          <div className="prose dark:prose-invert max-w-none prose-sm">
+                            {renderMarkdown(message.content)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {message.role === 'user' && (
+                    <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-md flex-shrink-0">
+                      <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center">
+                        <span className="text-xs font-bold text-blue-600">U</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -215,38 +253,52 @@ export default function CatalogPage() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-3 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Processing...</span>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-md">
+                    <DocumentTextIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-4 rounded-2xl shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <ArrowPathIcon className="w-5 h-5 animate-spin text-blue-600" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        Processing your request...
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Input Area */}
-          <div className="border-t border-gray-200 dark:border-gray-700 p-4">
-            <form onSubmit={handleProcessText} className="flex gap-2">
-              <input
-                type="text"
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                placeholder="Ask about your inventory, products, or catalog..."
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                disabled={loading}
-              />
+          {/* Professional Input Area */}
+          <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
+            <form onSubmit={handleProcessText} className="flex gap-3">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder="Ask about your inventory, products, analytics, or catalog operations..."
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white shadow-sm text-sm placeholder-gray-500 dark:placeholder-gray-400"
+                  disabled={loading}
+                />
+              </div>
               <button
                 type="submit"
                 disabled={loading || !textInput.trim()}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center gap-2"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl disabled:shadow-none flex items-center gap-2 font-medium"
               >
                 {loading ? (
-                  <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                  <>
+                    <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                    Processing
+                  </>
                 ) : (
-                  <SparklesIcon className="w-4 h-4" />
+                  <>
+                    <SparklesIcon className="w-5 h-5" />
+                    Send
+                  </>
                 )}
-                Send
               </button>
             </form>
           </div>
