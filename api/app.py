@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 from pydantic import BaseModel, Field
 from typing import Optional, Union
 import os
@@ -16,8 +16,14 @@ from ecommerce import add_product_api, search_products_api, catalog_ai_api
 
 app = Flask(__name__)
 
-# Enable CORS for all routes
-CORS(app)
+# Enable CORS for all routes with proper configuration
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000", "http://localhost:4000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
@@ -68,9 +74,28 @@ def health_check():
     """Health check endpoint"""
     return jsonify(BaseResponse(success=True, message="API is healthy").model_dump())
 
-@app.route('/text-to-audio', methods=['POST'])
+@app.before_request
+def handle_preflight():
+    """Handle preflight requests"""
+    if request.method == "OPTIONS":
+        response = jsonify({'success': True})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
+
+@app.route('/text-to-audio', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def convert_text_to_audio():
     """Convert text to audio file"""
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({'success': True})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
+        
     try:
         data = request.get_json()
         
@@ -115,9 +140,18 @@ def convert_text_to_audio():
             error=str(e)
         ).model_dump()), 500
 
-@app.route('/translate', methods=['POST'])
+@app.route('/translate', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def translate():
     """Translate text from one language to another"""
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({'success': True})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
+        
     try:
         data = request.get_json()
         
@@ -339,9 +373,18 @@ def search_products_endpoint():
             "error": str(e)
         }), 500
 
-@app.route('/catalog/process-text', methods=['POST'])
+@app.route('/catalog/process-text', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def process_catalog_text():
     """Process text input for catalog operations"""
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({'success': True})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
+        
     try:
         data = request.get_json()
         
