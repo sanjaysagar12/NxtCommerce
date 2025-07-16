@@ -14,18 +14,30 @@ if google_api_key and google_api_key != "your-google-api-key-here":
     genai.configure(api_key=google_api_key)
     print("✅ Gemini API configured successfully!")
 else:
-    print("⚠️  GOOGLE_API_KEY not found or not set. Using AI fallback.")
+    print("⚠️  GOOGLE_API_KEY not found or not set. Using fallback generator.")
 
 # Gemini model configuration
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-def generate_product_json_with_gemini(user_input):
+def generate_product_json_with_gemini(user_input, categories=None):
     """Generate product JSON using Google Gemini API"""
+    
+    # Get valid category IDs if provided
+    category_info = ""
+    if categories:
+        category_info = f"""
+        Available categories to use:
+        {json.dumps(categories, indent=2)}
+        
+        Important: Use ONLY the category IDs from the list above. Do not make up category IDs.
+        """
     
     prompt = f"""
     You are an intelligent assistant that generates JSON objects for product catalogs.
     
     Generate a product JSON based on the following input: "{user_input}"
+    
+    {category_info}
     
     Return ONLY a valid JSON object with the following structure:
     {{
@@ -38,7 +50,8 @@ def generate_product_json_with_gemini(user_input):
         "thumbnail": "https://example.com/product-thumb.jpg",
         "images": [
             {{"url": "https://example.com/product-1.jpg"}},
-            {{"url": "https://example.com/product-2.jpg"}}
+            {{"url": "https://example.com/product-2.jpg"}},
+            {{"url": "https://example.com/product-3.jpg"}}
         ],
         "variants": [
             {{
@@ -51,26 +64,43 @@ def generate_product_json_with_gemini(user_input):
                     {{"url": "https://example.com/product-s-1.jpg"}},
                     {{"url": "https://example.com/product-s-2.jpg"}}
                 ]
+            }},
+            {{
+                "name": "Size M",
+                "sku": "SKU-1234-M",
+                "price": 1500,
+                "stock": 12,
+                "thumbnail": "https://example.com/product-m-thumb.jpg",
+                "images": [
+                    {{"url": "https://example.com/product-m-1.jpg"}},
+                    {{"url": "https://example.com/product-m-2.jpg"}}
+                ]
             }}
         ],
-        "categoryIds": [],
+        "categoryIds": ["valid-category-id-1", "valid-category-id-2"],
         "attributes": [
             {{"name": "Fabric", "value": "Cotton"}},
             {{"name": "Color", "value": "Red"}},
-            {{"name": "Gender", "value": "Men"}}
+            {{"name": "Gender", "value": "Women"}},
+            {{"name": "Style", "value": "Traditional"}},
+            {{"name": "Sleeve", "value": "3/4th"}},
+            {{"name": "Fit", "value": "Regular"}}
         ]
     }}
     
     Important guidelines:
     1. Extract product type, color, fabric, gender from the input
-    2. Handle spelling mistakes intelligently (e.g., "shert" → "shirt")
-    3. Generate appropriate price based on product type
-    4. Create realistic stock quantities
-    5. Generate proper SKU codes
-    6. Create variants for different sizes mentioned
+    2. Handle spelling mistakes intelligently (e.g., "shert" → "shirt", "kurtha" → "kurta")
+    3. Generate appropriate price based on product type and quality described
+    4. Create realistic stock quantities (10-50 range)
+    5. Generate proper SKU codes using product type abbreviations
+    6. Create variants for different sizes mentioned in input
     7. Include relevant attributes based on the product type
     8. Use proper Indian pricing (₹ symbol in description but numbers in price field)
-    9. Return ONLY the JSON object, no additional text
+    9. Generate realistic product names that match the input
+    10. Create comprehensive descriptions highlighting key features
+    11. MOST IMPORTANT: Use only valid category IDs from the provided list above
+    12. Return ONLY the JSON object, no additional text or markdown formatting
     """
     
     try:
@@ -91,209 +121,75 @@ def generate_product_json_with_gemini(user_input):
         print(f"❌ Gemini API error: {e}")
         return None
 
-def generate_ai_product_json(user_input):
+def generate_mock_product_json(user_input, categories=None):
     """
-    Use AI to generate product JSON when OpenAI API is not available.
-    This is a smarter fallback that uses AI reasoning instead of hardcoded regex.
+    Enhanced mock product generator with better AI-like intelligence
     """
-    import random
     import re
+    import random
     
-    # Create a simple AI-like prompt for local processing
-    ai_prompt = f"""
-    Analyze this product description and extract information:
-    "{user_input}"
-    
-    Extract and infer:
-    1. Product type (shirt, dress, kurta, pants, etc.)
-    2. Color mentioned or infer appropriate color
-    3. Fabric/material mentioned or infer appropriate fabric
-    4. Target gender (men, women, kids) or infer from context
-    5. Price if mentioned, otherwise suggest appropriate price
-    6. Sizes mentioned or suggest appropriate sizes
-    7. Discount percentage if mentioned
-    8. Stock quantity if mentioned
-    9. Additional attributes like sleeve type, length, etc.
-    
-    Handle spelling mistakes and typos intelligently.
-    """
-    
-    # AI-powered extraction using improved logic
-    def smart_extract(text, patterns, default, context_hints=None):
-        """Smart extraction that handles typos and context"""
-        text_lower = text.lower()
-        
-        # First try exact matches
-        for pattern in patterns:
-            if isinstance(pattern, dict):
-                for key, values in pattern.items():
-                    for value in values:
-                        if value.lower() in text_lower:
-                            return key
-            else:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    return match.group(1) if match.groups() else match.group(0)
-        
-        # If no match and context hints available, use context
-        if context_hints:
-            for hint, result in context_hints.items():
-                if hint.lower() in text_lower:
-                    return result
-        
-        return default
-    
-    # Smart product type detection with context
+    # Smart product type detection
     product_types = {
-        'kurta': ['kurta', 'karta', 'kurtha', 'ethnic', 'traditional', 'indian'],
-        'shirt': ['shirt', 'shart', 'shert', 'formal', 'office', 'business'],
-        'dress': ['dress', 'dres', 'drss', 'gown', 'frock', 'party'],
-        'pants': ['pants', 'pant', 'trousers', 'trouser', 'bottom'],
+        'kurta': ['kurta', 'karta', 'kurtha', 'ethnic', 'traditional'],
+        'shirt': ['shirt', 'shart', 'shert', 'formal', 'office'],
+        'dress': ['dress', 'dres', 'drss', 'gown', 'frock'],
+        'pants': ['pants', 'pant', 'trousers', 'trouser'],
         'jeans': ['jeans', 'jean', 'denim'],
-        't-shirt': ['t-shirt', 'tshirt', 'tshert', 'casual', 'cotton tee'],
-        'saree': ['saree', 'sari', 'sare', 'traditional'],
-        'top': ['top', 'blouse', 'tunic'],
-        'jacket': ['jacket', 'blazer', 'coat'],
-        'skirt': ['skirt', 'mini', 'maxi'],
-        'lehenga': ['lehenga', 'lehnga', 'wedding', 'bridal'],
-        'palazzo': ['palazzo', 'pallazo', 'wide leg']
+        't-shirt': ['t-shirt', 'tshirt', 'tshert', 'casual'],
+        'saree': ['saree', 'sari', 'sare'],
+        'top': ['top', 'blouse', 'tunic']
     }
     
-    # Extract product type with AI logic
-    product_type = "Kurta"  # Default to kurta instead of dress
+    product_type = "kurta"  # default
     for ptype, keywords in product_types.items():
         if any(keyword in user_input.lower() for keyword in keywords):
-            product_type = ptype.title()
+            product_type = ptype
             break
     
     # Smart color detection
     colors = {
-        'red': ['red', 'crimson', 'scarlet', 'maroon'],
-        'blue': ['blue', 'blu', 'navy', 'royal blue', 'sky blue'],
-        'green': ['green', 'gren', 'olive', 'emerald', 'mint'],
-        'black': ['black', 'blk', 'ebony', 'jet black'],
-        'white': ['white', 'wht', 'ivory', 'cream', 'off white'],
-        'pink': ['pink', 'rose', 'magenta', 'hot pink'],
-        'yellow': ['yellow', 'yelo', 'golden', 'mustard'],
-        'purple': ['purple', 'violet', 'lavender', 'plum'],
-        'orange': ['orange', 'saffron', 'peach'],
-        'brown': ['brown', 'tan', 'beige', 'khaki'],
-        'gray': ['gray', 'grey', 'silver', 'charcoal']
+        'red': ['red', 'crimson', 'scarlet'],
+        'blue': ['blue', 'navy', 'royal'],
+        'green': ['green', 'olive', 'emerald'],
+        'black': ['black', 'ebony'],
+        'white': ['white', 'ivory', 'cream'],
+        'pink': ['pink', 'rose'],
+        'yellow': ['yellow', 'golden'],
+        'purple': ['purple', 'violet']
     }
     
-    color = "Black"
+    color = "red"  # default
     for clr, keywords in colors.items():
         if any(keyword in user_input.lower() for keyword in keywords):
-            color = clr.title()
+            color = clr
             break
     
-    # Smart fabric detection
-    fabrics = {
-        'cotton': ['cotton', 'coton', 'cottn', 'breathable', 'soft'],
-        'silk': ['silk', 'slik', 'shiny', 'lustrous', 'smooth'],
-        'denim': ['denim', 'denm', 'jeans', 'sturdy'],
-        'wool': ['wool', 'woolen', 'warm', 'winter'],
-        'polyester': ['polyester', 'poly', 'synthetic', 'wrinkle free'],
-        'linen': ['linen', 'flax', 'summer', 'breathable'],
-        'leather': ['leather', 'genuine', 'faux leather'],
-        'chiffon': ['chiffon', 'light', 'flowy', 'transparent'],
-        'georgette': ['georgette', 'flowing', 'drape']
-    }
-    
-    fabric = "Cotton"
-    for fab, keywords in fabrics.items():
-        if any(keyword in user_input.lower() for keyword in keywords):
-            fabric = fab.title()
-            break
-    
-    # Smart gender detection with better defaults
-    gender = "Men"  # Default to Men
-    if any(word in user_input.lower() for word in ['women', 'woman', 'female', 'girl', 'ladies', 'lady']):
-        gender = "Women"
-    elif any(word in user_input.lower() for word in ['men', 'man', 'male', 'boy', 'gents', 'gentleman']):
+    # Smart gender detection
+    gender = "Women"  # default
+    if any(word in user_input.lower() for word in ['men', 'man', 'male', 'boy', 'gents']):
         gender = "Men"
-    elif any(word in user_input.lower() for word in ['kids', 'children', 'child', 'baby']):
+    elif any(word in user_input.lower() for word in ['kids', 'children', 'child']):
         gender = "Kids"
     
-    # Smart price extraction and generation
+    # Extract numerical values
     price_match = re.search(r'₹(\d+)', user_input)
-    if price_match:
-        price = int(price_match.group(1))
-    else:
-        # AI-generated price based on product type and fabric
-        price_ranges = {
-            'kurta': (800, 2000),
-            'shirt': (500, 1500),
-            'dress': (1000, 3000),
-            'saree': (1500, 5000),
-            'jeans': (800, 2500),
-            't-shirt': (300, 800),
-            'jacket': (1200, 4000),
-            'lehenga': (3000, 15000)
-        }
-        
-        base_range = price_ranges.get(product_type.lower(), (500, 2000))
-        
-        # Adjust price based on fabric
-        fabric_multiplier = {
-            'silk': 1.5,
-            'leather': 2.0,
-            'wool': 1.3,
-            'cotton': 1.0,
-            'polyester': 0.8,
-            'denim': 1.2
-        }
-        
-        multiplier = fabric_multiplier.get(fabric.lower(), 1.0)
-        price = int(random.randint(base_range[0], base_range[1]) * multiplier)
-    
-    # Extract other attributes
     discount_match = re.search(r'(\d+)%\s*discount', user_input)
-    discount = int(discount_match.group(1)) if discount_match else random.randint(10, 30)
-    
     stock_match = re.search(r'(\d+)\s*in\s*stock', user_input)
+    size_matches = re.findall(r'size[s]?\s*([A-Z,\s]+)', user_input, re.IGNORECASE)
+    
+    # Generate realistic values
+    price = int(price_match.group(1)) if price_match else random.randint(500, 2000)
+    discount = int(discount_match.group(1)) if discount_match else random.randint(10, 30)
     stock = int(stock_match.group(1)) if stock_match else random.randint(10, 50)
     
-    # Smart size detection
-    size_matches = re.findall(r'size[s]?\s*([A-Z,\s]+|XS|S|M|L|XL|XXL)', user_input, re.IGNORECASE)
+    # Process sizes
     sizes = []
     if size_matches:
-        for size_match in size_matches:
-            sizes.extend([s.strip().upper() for s in size_match.replace('and', ',').replace('to', ',').split(',') if s.strip()])
+        sizes = [s.strip().upper() for s in size_matches[0].replace('and', ',').split(',') if s.strip()]
+    else:
+        sizes = ['S', 'M', 'L'] if gender != 'Kids' else ['S', 'M']
     
-    if not sizes:
-        # AI-generated sizes based on product type and gender
-        if product_type.lower() in ['kurta', 'shirt', 'dress', 't-shirt']:
-            sizes = ['S', 'M', 'L', 'XL'] if gender == 'Men' else ['S', 'M', 'L']
-        elif product_type.lower() in ['jeans', 'pants']:
-            sizes = ['30', '32', '34', '36'] if gender == 'Men' else ['28', '30', '32']
-        elif product_type.lower() == 'saree':
-            sizes = ['Free Size']
-        else:
-            sizes = ['S', 'M', 'L']
-    
-    # Remove duplicates
-    sizes = list(dict.fromkeys(sizes))
-    
-    # Generate intelligent product name
-    name = f"{color} {fabric} {product_type} for {gender}"
-    
-    # Generate intelligent description
-    description = f"Premium {color.lower()} {product_type.lower()} crafted from high-quality {fabric.lower()} fabric. "
-    
-    # Add context-aware description
-    if product_type.lower() == 'kurta':
-        description += "Perfect for festivals, casual outings, and ethnic occasions. "
-    elif product_type.lower() == 'shirt':
-        description += "Ideal for office wear, formal events, and business meetings. "
-    elif product_type.lower() == 'dress':
-        description += "Elegant design perfect for parties, dates, and special occasions. "
-    elif product_type.lower() == 'saree':
-        description += "Traditional elegance for weddings, festivals, and cultural events. "
-    
-    description += f"Available in {', '.join(sizes)} sizes. Comfortable fit with excellent durability."
-    
-    # Generate intelligent SKU
+    # Generate SKU
     sku_prefix = product_type[:3].upper() if len(product_type) >= 3 else "PRD"
     base_sku = sku_prefix + str(random.randint(1000, 9999))
     
@@ -304,37 +200,46 @@ def generate_ai_product_json(user_input):
             "name": f"Size {size}",
             "sku": f"{base_sku}-{size}",
             "price": price,
-            "stock": max(1, stock // len(sizes)) if len(sizes) > 0 else stock // 2,
-            "thumbnail": f"https://example.com/products/{product_type.lower()}-{color.lower()}-{size.lower()}-thumb.jpg",
+            "stock": max(1, stock // len(sizes)),
+            "thumbnail": f"https://example.com/{product_type}-{color}-{size.lower()}-thumb.jpg",
             "images": [
-                {"url": f"https://example.com/products/{product_type.lower()}-{color.lower()}-{size.lower()}-front.jpg"},
-                {"url": f"https://example.com/products/{product_type.lower()}-{color.lower()}-{size.lower()}-back.jpg"}
+                {"url": f"https://example.com/{product_type}-{color}-{size.lower()}-front.jpg"},
+                {"url": f"https://example.com/{product_type}-{color}-{size.lower()}-back.jpg"}
             ]
         })
     
-    # Generate intelligent attributes
-    attributes = [
-        {"name": "Fabric", "value": fabric},
-        {"name": "Color", "value": color},
-        {"name": "Gender", "value": gender},
-        {"name": "Product Type", "value": product_type}
-    ]
+    # Generate product name
+    name = f"{color.title()} {product_type.title()} for {gender}"
     
-    # Add context-specific attributes
-    if product_type.lower() in ['kurta', 'shirt', 'dress']:
-        sleeve_patterns = [r'sleeveless', r'short\s+sleeve', r'long\s+sleeve', r'3/4', r'¾', r'half\s+sleeve']
-        sleeve = smart_extract(user_input, sleeve_patterns, "Short Sleeve")
-        attributes.append({"name": "Sleeve", "value": sleeve})
+    # Generate description based on product type
+    descriptions = {
+        'kurta': f"Beautiful {color} {product_type} perfect for ethnic occasions. Made from premium cotton fabric with comfortable fit.",
+        'shirt': f"Elegant {color} {product_type} ideal for formal and casual wear. Premium quality fabric ensures comfort and durability.",
+        'dress': f"Stunning {color} {product_type} perfect for special occasions. Stylish design with comfortable fit.",
+        't-shirt': f"Comfortable {color} {product_type} for everyday wear. Soft fabric and modern design.",
+        'saree': f"Graceful {color} {product_type} for traditional occasions. Elegant design with premium fabric.",
+        'jeans': f"Trendy {color} {product_type} for casual wear. Comfortable fit with durable fabric.",
+        'pants': f"Stylish {color} {product_type} suitable for various occasions. Premium quality and comfortable fit."
+    }
     
-    if product_type.lower() in ['dress', 'kurta', 'skirt']:
-        length_patterns = [r'mini', r'maxi', r'midi', r'knee', r'ankle', r'floor']
-        length = smart_extract(user_input, length_patterns, "Knee Length")
-        attributes.append({"name": "Length", "value": length})
+    description = descriptions.get(product_type, f"Premium {color} {product_type} with excellent quality and comfort.")
     
-    if product_type.lower() in ['shirt', 'kurta', 'dress']:
-        neck_patterns = [r'round\s+neck', r'v-neck', r'collar', r'high\s+neck', r'boat\s+neck']
-        neck = smart_extract(user_input, neck_patterns, "Round Neck")
-        attributes.append({"name": "Neck", "value": neck})
+    # Generate valid category IDs
+    category_ids = []
+    if categories:
+        # Find matching categories based on product type and gender
+        for category in categories:
+            cat_name = category.get('name', '').lower()
+            if any(keyword in cat_name for keyword in [product_type, gender.lower(), 'clothing', 'apparel']):
+                category_ids.append(category.get('id', category.get('_id', '')))
+        
+        # If no matches found, use first available category
+        if not category_ids and categories:
+            category_ids = [categories[0].get('id', categories[0].get('_id', ''))]
+    
+    # Fallback if no categories provided
+    if not category_ids:
+        category_ids = ["default-category"]
     
     return {
         "name": name,
@@ -343,64 +248,86 @@ def generate_ai_product_json(user_input):
         "price": price,
         "discount": discount,
         "sku": base_sku,
-        "thumbnail": f"https://example.com/products/{product_type.lower()}-{color.lower()}-main.jpg",
+        "thumbnail": f"https://example.com/{product_type}-{color}-main.jpg",
         "images": [
-            {"url": f"https://example.com/products/{product_type.lower()}-{color.lower()}-1.jpg"},
-            {"url": f"https://example.com/products/{product_type.lower()}-{color.lower()}-2.jpg"},
-            {"url": f"https://example.com/products/{product_type.lower()}-{color.lower()}-3.jpg"}
+            {"url": f"https://example.com/{product_type}-{color}-image1.jpg"},
+            {"url": f"https://example.com/{product_type}-{color}-image2.jpg"},
+            {"url": f"https://example.com/{product_type}-{color}-image3.jpg"}
         ],
         "variants": variants,
-        "categoryIds": [],
-        "attributes": attributes
+        "categoryIds": category_ids,
+        "attributes": [
+            {"name": "Fabric", "value": "Cotton"},
+            {"name": "Color", "value": color.title()},
+            {"name": "Gender", "value": gender},
+            {"name": "Product Type", "value": product_type.title()},
+            {"name": "Style", "value": "Modern" if product_type in ['shirt', 'jeans', 't-shirt'] else "Traditional"}
+        ]
     }
 
 def generate_product_json(user_input, use_mock=False):
     """
-    Generate product JSON using Gemini API with fallback to AI generator
+    Generate product JSON using Gemini API with fallback to mock generator
     """
+    # Fetch categories to ensure valid category IDs
+    import requests
+    categories = []
+    
+    try:
+        print("Fetching valid category IDs...")
+        response = requests.get("https://api-ecommerce.sanjaysagar.com/api/categories")
+        if response.status_code == 200:
+            data = response.json()
+            categories = data.get('categories', [])
+            print(f"✅ Found {len(categories)} valid categories")
+        else:
+            print(f"⚠️  Could not fetch categories, status code: {response.status_code}")
+    except Exception as e:
+        print(f"⚠️  Error fetching categories: {e}")
+    
     if use_mock:
-        print("Using AI-powered generator (API unavailable)")
-        return generate_ai_product_json(user_input)
+        print("Using mock generator (API unavailable)")
+        return generate_mock_product_json(user_input, categories)
     
     # Try Gemini first
     google_api_key = os.getenv("GOOGLE_API_KEY")
     if google_api_key and google_api_key != "your-google-api-key-here":
         try:
             print("Attempting to use Gemini API...")
-            result = generate_product_json_with_gemini(user_input)
+            result = generate_product_json_with_gemini(user_input, categories)
             if result:
                 print("✅ Gemini API call successful!")
                 return result
             else:
                 print("❌ Gemini API returned empty result.")
-                print("Falling back to AI-powered generator...")
-                return generate_ai_product_json(user_input)
+                print("Falling back to mock generator...")
+                return generate_mock_product_json(user_input, categories)
         except Exception as e:
             error_message = str(e).lower()
             if "quota" in error_message or "exceeded" in error_message:
                 print("❌ Gemini API quota exceeded.")
-                print("Falling back to AI-powered generator...")
-                return generate_ai_product_json(user_input)
+                print("Falling back to mock generator...")
+                return generate_mock_product_json(user_input, categories)
             elif "rate_limit" in error_message:
                 print("❌ Gemini API rate limit reached.")
-                print("Falling back to AI-powered generator...")
-                return generate_ai_product_json(user_input)
+                print("Falling back to mock generator...")
+                return generate_mock_product_json(user_input, categories)
             elif "authentication" in error_message or "api_key" in error_message:
                 print("❌ Gemini API authentication failed. Check your API key.")
-                print("Falling back to AI-powered generator...")
-                return generate_ai_product_json(user_input)
+                print("Falling back to mock generator...")
+                return generate_mock_product_json(user_input, categories)
             elif "connection" in error_message or "network" in error_message:
                 print("❌ Network connection error with Gemini API.")
-                print("Falling back to AI-powered generator...")
-                return generate_ai_product_json(user_input)
+                print("Falling back to mock generator...")
+                return generate_mock_product_json(user_input, categories)
             else:
                 print(f"❌ Gemini API error: {e}")
-                print("Falling back to AI-powered generator...")
-                return generate_ai_product_json(user_input)
+                print("Falling back to mock generator...")
+                return generate_mock_product_json(user_input, categories)
     else:
         print("❌ GOOGLE_API_KEY not configured.")
-        print("Falling back to AI-powered generator...")
-        return generate_ai_product_json(user_input)
+        print("Falling back to mock generator...")
+        return generate_mock_product_json(user_input, categories)
 
 def parse_search_query(user_input, categories, attributes):
     import re
@@ -419,33 +346,17 @@ def parse_search_query(user_input, categories, attributes):
     name_match = re.search(r'(find|search|show|get|list)\s+(.*?)(?:\s+(?:with|in|under|above|category|price|rating|sort)|\s*$)', user_input, re.IGNORECASE)
     if name_match:
         search_params['name'] = name_match.group(2).strip()
-    # Parse price ranges and constraints
-    # Handle "between X and Y" or "from X to Y"
-    price_range_match = re.search(r'(?:between|from)\s*₹?(\d+)(?:\s*(?:to|-|and)\s*₹?(\d+))', user_input, re.IGNORECASE)
-    if price_range_match:
-        search_params['minPrice'] = int(price_range_match.group(1))
-        search_params['maxPrice'] = int(price_range_match.group(2))
-    
-    # Handle "above/over/more than X"
-    min_price_match = re.search(r'(?:above|over|more\s+than|minimum|greater\s+than)\s*₹?(\d+)', user_input, re.IGNORECASE)
+    price_matches = re.findall(r'(?:price|cost)\s*(?:between|from)?\s*₹?(\d+)(?:\s*(?:to|-)\s*₹?(\d+))?', user_input, re.IGNORECASE)
+    if price_matches:
+        min_price, max_price = price_matches[0]
+        search_params['minPrice'] = int(min_price) if min_price else None
+        search_params['maxPrice'] = int(max_price) if max_price else None
+    min_price_match = re.search(r'(?:above|over|more\s+than|minimum)\s*₹?(\d+)', user_input, re.IGNORECASE)
     if min_price_match:
         search_params['minPrice'] = int(min_price_match.group(1))
-    
-    # Handle "under/below/less than X" - improved pattern to handle "less the" typo
-    max_price_match = re.search(r'(?:under|below|less\s+(?:than|the)|maximum|cheaper\s+than)\s*₹?(\d+)', user_input, re.IGNORECASE)
+    max_price_match = re.search(r'(?:under|below|less\s+than|maximum)\s*₹?(\d+)', user_input, re.IGNORECASE)
     if max_price_match:
         search_params['maxPrice'] = int(max_price_match.group(1))
-    
-    # Handle simple "less ₹1000" or "under ₹1000" patterns
-    simple_max_price_match = re.search(r'(?:less|under)\s*₹?(\d+)', user_input, re.IGNORECASE)
-    if simple_max_price_match and not max_price_match:
-        search_params['maxPrice'] = int(simple_max_price_match.group(1))
-    
-    # Handle "price X" or "cost X" patterns for range detection
-    price_only_match = re.search(r'(?:price|cost)\s*₹?(\d+)', user_input, re.IGNORECASE)
-    if price_only_match and not price_range_match and not min_price_match and not max_price_match:
-        # If no other price constraint found, treat as max price
-        search_params['maxPrice'] = int(price_only_match.group(1))
     rating_match = re.search(r'rating\s*(?:above|over|more\s+than)?\s*(\d+)', user_input, re.IGNORECASE)
     if rating_match:
         search_params['minRating'] = int(rating_match.group(1))
@@ -461,14 +372,10 @@ def parse_search_query(user_input, categories, attributes):
         if sort_match.group(2):
             sort_order = sort_match.group(2).lower()
             search_params['sortOrder'] = 'asc' if sort_order in ['asc', 'ascending'] else 'desc'
-    # Only include categories that exist in the categories variable
     category_names = [cat['name'].lower() for cat in categories]
     for category in categories:
         if category['name'].lower() in user_input.lower():
             search_params['categories'].append(category['name'])
-    
-    # For attributes, allow any attributes from the input (not restricted to attributes variable)
-    # First, handle known attributes from the API
     for attribute in attributes:
         attr_name = attribute['name'].lower()
         for value in attribute['values']:
@@ -476,41 +383,6 @@ def parse_search_query(user_input, categories, attributes):
                 search_params['attributes'][attribute['name']] = value
             elif value.lower() in user_input.lower():
                 search_params['attributes'][attribute['name']] = value
-    
-    # Additionally, allow custom attributes that might not be in the API response
-    # Common e-commerce attributes that users might search for
-    import re
-    
-    # Color attribute
-    color_match = re.search(r'\b(red|blue|green|yellow|black|white|pink|purple|orange|brown|gray|grey)\b', user_input, re.IGNORECASE)
-    if color_match and 'Color' not in search_params['attributes']:
-        search_params['attributes']['Color'] = color_match.group(1).title()
-    
-    # Size attribute
-    size_match = re.search(r'\b(size|sizes?)\s*([A-Z]+|small|medium|large|xl|xxl|xs)\b', user_input, re.IGNORECASE)
-    if size_match and 'Size' not in search_params['attributes']:
-        search_params['attributes']['Size'] = size_match.group(2).upper()
-    
-    # Brand attribute
-    brand_match = re.search(r'\b(brand|by)\s+([A-Za-z]+)\b', user_input, re.IGNORECASE)
-    if brand_match and 'Brand' not in search_params['attributes']:
-        search_params['attributes']['Brand'] = brand_match.group(2).title()
-    
-    # Material/Fabric attribute
-    fabric_match = re.search(r'\b(cotton|silk|wool|polyester|linen|denim|leather|fabric)\b', user_input, re.IGNORECASE)
-    if fabric_match and 'Fabric' not in search_params['attributes'] and 'Material' not in search_params['attributes']:
-        search_params['attributes']['Fabric'] = fabric_match.group(1).title()
-    
-    # Gender attribute
-    gender_match = re.search(r'\b(men|women|male|female|boys?|girls?|kids?|children)\b', user_input, re.IGNORECASE)
-    if gender_match and 'Gender' not in search_params['attributes']:
-        gender_value = gender_match.group(1).lower()
-        if gender_value in ['men', 'male', 'boys', 'boy']:
-            search_params['attributes']['Gender'] = 'Men'
-        elif gender_value in ['women', 'female', 'girls', 'girl']:
-            search_params['attributes']['Gender'] = 'Women'
-        elif gender_value in ['kids', 'children', 'kid']:
-            search_params['attributes']['Gender'] = 'Kids'
     return search_params
 
 def build_search_url(search_params, base_url="https://api-ecommerce.sanjaysagar.com"):
@@ -646,15 +518,11 @@ def search_products_api(user_input=None):
     if access_token:
         categories = api.get_available_categories(access_token)
         attributes = api.get_available_attributes(access_token)
-        
-        # Ensure categories and attributes are lists (even if empty)
-        if not categories:
-            categories = []
-        if not attributes:
-            attributes = []
-            
-        # Parse search query - categories will be restricted to available ones,
-        # but attributes can include custom ones not in the API response
+        if not categories and not attributes:
+            return {
+                "success": False,
+                "message": "Failed to fetch metadata. Cannot perform search."
+            }
         search_params = parse_search_query(user_input, categories, attributes)
         search_url = build_search_url(search_params, api.base_url)
         results = api.search_products(search_url, access_token)
