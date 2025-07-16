@@ -2,39 +2,10 @@
 
 import { useState } from "react";
 import { 
-  MagnifyingGlassIcon, 
   SparklesIcon,
   DocumentTextIcon,
-  PlusCircleIcon,
-  ChartBarIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ClipboardDocumentIcon,
-  EyeIcon,
-  EyeSlashIcon,
   ArrowPathIcon
 } from "@heroicons/react/24/outline";
-
-// Action types for catalog processing
-const actionTypes = [
-  { value: 'summary', label: 'Inventory Summary', icon: ChartBarIcon, description: 'Get detailed stock and inventory analysis' },
-  { value: 'search', label: 'Search Products', icon: MagnifyingGlassIcon, description: 'Find products in your catalog' },
-  { value: 'add-product', label: 'Add Product', icon: PlusCircleIcon, description: 'Add new product from description' },
-  { value: 'analyze', label: 'Analyze', icon: SparklesIcon, description: 'Get insights and recommendations' }
-];
-
-// Sort options
-const sortOptions = [
-  { value: 'createdAt', label: 'Created Date' },
-  { value: 'name', label: 'Product Name' },
-  { value: 'price', label: 'Price' },
-  { value: 'stock', label: 'Stock' }
-];
-
-const sortOrders = [
-  { value: 'desc', label: 'Descending' },
-  { value: 'asc', label: 'Ascending' }
-];
 
 // Simple markdown renderer for basic formatting
 const renderMarkdown = (text: string) => {
@@ -88,30 +59,20 @@ const renderMarkdown = (text: string) => {
 
 export default function CatalogPage() {
   const [textInput, setTextInput] = useState("");
-  const [selectedAction, setSelectedAction] = useState("summary");
-  const [result, setResult] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showJsonView, setShowJsonView] = useState(false);
-  const [copied, setCopied] = useState(false);
-  
-  // Simplified pagination and sorting
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState("desc");
 
   const handleProcessText = async (e?: React.FormEvent) => {
+    console.log("Processing text:", textInput);
     if (e) e.preventDefault();
     
-    setError("");
-    setResult(null);
-    
     if (!textInput.trim()) {
-      setError("Please enter some text to process.");
       return;
     }
     
+    const userMessage = { role: 'user', content: textInput };
+    setMessages(prev => [...prev, userMessage]);
+    setTextInput("");
     setLoading(true);
     
     try {
@@ -120,25 +81,38 @@ export default function CatalogPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: textInput,
-          action: selectedAction,
-          page: page,
-          limit: limit,
-          sortBy: sortBy,
-          sortOrder: sortOrder
+          action: "summary",
+          page: 1,
+          limit: 10,
+          sortBy: "createdAt",
+          sortOrder: "desc"
         }),
       });
       
       const data = await response.json();
       
       if (data.success) {
-        setResult(data);
+        const aiMessage = { 
+          role: 'assistant', 
+          content: data.text_summary || "No summary available",
+          fullData: data
+        };
+        setMessages(prev => [...prev, aiMessage]);
       } else {
-        setError(data.message || "Failed to process text.");
-        setResult(null);
+        const errorMessage = {
+          role: 'assistant',
+          content: data.message || "Failed to process text.",
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMessage]);
       }
     } catch (err: any) {
-      setError(err.message || "An error occurred while processing text.");
-      setResult(null);
+      const errorMessage = {
+        role: 'assistant',
+        content: err.message || "An error occurred while processing text.",
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setLoading(false);
     }
@@ -146,8 +120,6 @@ export default function CatalogPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const examplePrompts = [
@@ -159,230 +131,124 @@ export default function CatalogPage() {
     "Generate a business report for the catalog"
   ];
 
-  const getActionIcon = (action: string) => {
-    const actionType = actionTypes.find(a => a.value === action);
-    if (actionType) {
-      const IconComponent = actionType.icon;
-      return <IconComponent className="w-5 h-5" />;
-    }
-    return <DocumentTextIcon className="w-5 h-5" />;
-  };
-
-  const renderResult = () => {
-    if (!result) return null;
-
-    const { text_summary, processed_text, message } = result;
-
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-              <CheckCircleIcon className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {actionTypes.find(a => a.value === selectedAction)?.label}
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {message}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowJsonView(!showJsonView)}
-              className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
-            >
-              {showJsonView ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-              {showJsonView ? 'Hide JSON' : 'View JSON'}
-            </button>
-            <button
-              onClick={() => copyToClipboard(text_summary || JSON.stringify(result, null, 2))}
-              className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors flex items-center gap-2"
-            >
-              <ClipboardDocumentIcon className="w-4 h-4" />
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-        </div>
-
-        {/* Processed Query */}
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Query:</p>
-          <p className="text-gray-900 dark:text-white font-medium">"{processed_text}"</p>
-        </div>
-
-        {/* Result Content */}
-        <div className="space-y-4">
-          {showJsonView ? (
-            <pre className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto text-sm">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          ) : (
-            <div className="prose dark:prose-invert max-w-none">
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                {renderMarkdown(text_summary || "No summary available")}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-lg">
-              <DocumentTextIcon className="w-6 h-6 text-white" />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-600 rounded-lg">
+              <DocumentTextIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                 Catalog AI Assistant
               </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Intelligent inventory management and catalog processing
+                Your intelligent inventory assistant
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Input Section */}
-          <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Process Request
-              </h2>
-
-              <form onSubmit={handleProcessText} className="space-y-4">
-                {/* Action Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Action Type
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {actionTypes.map((action) => {
-                      const IconComponent = action.icon;
-                      return (
-                        <button
-                          key={action.value}
-                          type="button"
-                          onClick={() => setSelectedAction(action.value)}
-                          className={`p-2 rounded-lg border text-left transition-all ${
-                            selectedAction === action.value
-                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                              : 'border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-600'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <IconComponent className="w-4 h-4" />
-                            <span className="text-sm font-medium">{action.label}</span>
-                          </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {action.description}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Text Input */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Your Request
-                  </label>
-                  <textarea
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                    rows={4}
-                    placeholder="Enter your request here..."
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {textInput.length}/1000 characters
-                  </p>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={loading || !textInput.trim()}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      {getActionIcon(selectedAction)}
-                      Process Request
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* Example Prompts */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                Example Requests
-              </h3>
-              <div className="space-y-2">
-                {examplePrompts.map((prompt, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setTextInput(prompt)}
-                    className="w-full text-left p-2 text-sm text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    disabled={loading}
-                  >
-                    "{prompt}"
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Results Section */}
-          <div className="lg:col-span-2">
-            {/* Error Display */}
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
-                  <div>
-                    <h3 className="font-medium text-red-800 dark:text-red-200">Error</h3>
-                    <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Results */}
-            {result && renderResult()}
-
-            {/* Placeholder when no results */}
-            {!result && !error && !loading && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+      {/* Chat Container */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-[600px] flex flex-col">
+          
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.length === 0 && (
+              <div className="text-center py-8">
                 <DocumentTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  Ready to Process
+                  Welcome to Catalog AI
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Select an action and enter your request to get started with AI-powered catalog processing.
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  Ask me anything about your inventory, products, or catalog management.
                 </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl mx-auto">
+                  {examplePrompts.map((prompt, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setTextInput(prompt)}
+                      className="p-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left"
+                      disabled={loading}
+                    >
+                      "{prompt}"
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
+
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] px-4 py-3 rounded-lg ${
+                    message.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : message.isError
+                      ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {message.role === 'user' ? (
+                    <p className="text-sm">{message.content}</p>
+                  ) : (
+                    <div className="text-sm">
+                      {message.isError ? (
+                        <p>{message.content}</p>
+                      ) : (
+                        <div className="prose dark:prose-invert max-w-none prose-sm">
+                          {renderMarkdown(message.content)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-3 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Processing...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Input Area */}
+          <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+            <form onSubmit={handleProcessText} className="flex gap-2">
+              <input
+                type="text"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Ask about your inventory, products, or catalog..."
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                disabled={loading}
+              />
+              <button
+                type="submit"
+                disabled={loading || !textInput.trim()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                {loading ? (
+                  <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                ) : (
+                  <SparklesIcon className="w-4 h-4" />
+                )}
+                Send
+              </button>
+            </form>
           </div>
         </div>
       </div>
