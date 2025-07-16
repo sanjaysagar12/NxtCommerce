@@ -339,85 +339,223 @@ def search_products_endpoint():
             "error": str(e)
         }), 500
 
-@app.route('/catalog', methods=['GET'])
-def view_catalog_endpoint():
-    """View product catalog with pagination"""
-    try:
-        page = request.args.get('page', 1, type=int)
-        limit = request.args.get('limit', 10, type=int)
-        sort_by = request.args.get('sortBy', 'createdAt')
-        sort_order = request.args.get('sortOrder', 'desc')
-        show_full_details = request.args.get('fullDetails', False, type=bool)
-        
-        result = catalog_ai_api(
-            action="view",
-            page=page,
-            limit=limit,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            show_full_details=show_full_details
-        )
-        
-        status_code = 200 if result.get('success') else 400
-        return jsonify(result), status_code
-        
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": "Internal server error.",
-            "error": str(e)
-        }), 500
-
-@app.route('/catalog/export', methods=['POST'])
-def export_catalog_endpoint():
-    """Export catalog to JSON or CSV"""
+@app.route('/catalog/process-text', methods=['POST'])
+def process_catalog_text():
+    """Process text input for catalog operations"""
     try:
         data = request.get_json()
-        export_format = data.get('format', 'json').lower()
         
-        if export_format not in ['json', 'csv']:
+        # Validate request data
+        if not data or 'text' not in data:
             return jsonify({
                 "success": False,
-                "message": "Invalid export format. Use 'json' or 'csv'."
+                "message": "Missing 'text' field in request body"
             }), 400
         
-        action = "export_json" if export_format == 'json' else "export_csv"
-        result = catalog_ai_api(action=action)
-        
-        status_code = 200 if result.get('success') else 400
-        return jsonify(result), status_code
-        
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": "Internal server error.",
-            "error": str(e)
-        }), 500
-
-@app.route('/catalog/search', methods=['POST'])
-def search_catalog_endpoint():
-    """Search products in catalog"""
-    try:
-        data = request.get_json()
-        if not data or 'query' not in data:
-            return jsonify({
-                "success": False,
-                "message": "Missing 'query' in request body."
-            }), 400
-        
-        query = data['query']
+        text_input = data['text']
+        action = data.get('action', 'summary')  # Default action is summary
         page = data.get('page', 1)
         limit = data.get('limit', 10)
+        sort_by = data.get('sortBy', 'createdAt')
+        sort_order = data.get('sortOrder', 'desc')
         
-        result = catalog_ai_api(
-            action="search",
-            query=query,
-            page=page,
-            limit=limit
+        if not text_input.strip():
+            return jsonify({
+                "success": False,
+                "message": "Text input cannot be empty"
+            }), 400
+        
+        # Process text based on action
+        if action == 'summary' or action == 'ai-summary':
+            # Use AI to generate catalog summary with text context
+            from ecommerce import get_ai_catalog_summary_with_context
+            result = get_ai_catalog_summary_with_context(
+                text_input, page, limit, sort_by, sort_order
+            )
+            
+            if result:
+                # Extract only the text summary part
+                text_summary = ""
+                if isinstance(result, dict):
+                    text_summary = result.get('ai_summary', result.get('text_summary', str(result)))
+                else:
+                    text_summary = str(result)
+                
+                return jsonify({
+                    "success": True,
+                    "message": "AI catalog summary generated successfully",
+                    "text_summary": text_summary,
+                    "processed_text": text_input
+                }), 200
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": "Failed to generate AI catalog summary with text context"
+                }), 400
+        
+        elif action == 'search':
+            # Use text as search query  
+            from ecommerce import search_products_api
+            result = search_products_api(text_input)
+            
+            if result and result.get('success'):
+                # Generate text summary of search results
+                products = result.get('results', [])
+                if products:
+                    search_summary = f"Found {len(products)} products matching '{text_input}':\n\n"
+                    for i, product in enumerate(products[:5], 1):  # Show first 5 results
+                        search_summary += f"{i}. {product.get('name', 'N/A')}\n"
+                        search_summary += f"   Price: ₹{product.get('price', 'N/A')}\n"
+                        search_summary += f"   Stock: {product.get('stock', 'N/A')}\n"
+                        search_summary += f"   Description: {product.get('description', 'N/A')[:100]}...\n\n"
+                    
+                    if len(products) > 5:
+                        search_summary += f"... and {len(products) - 5} more products."
+                else:
+                    search_summary = f"No products found matching '{text_input}'"
+                
+                return jsonify({
+                    "success": True,
+                    "message": f"Search completed for: '{text_input}'",
+                    "text_summary": search_summary,
+                    "processed_text": text_input
+                }), 200
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": f"Search failed for: '{text_input}'",
+                    "text_summary": f"No products found matching '{text_input}'",
+                    "processed_text": text_input
+                }), 400
+        
+        elif action == 'add-product':
+            # Use text to add a product
+            from ecommerce import add_product_api
+            result = add_product_api(text_input)
+            
+            if result and result.get('success'):
+                # Generate text summary of product addition
+                product_data = result.get('data', {})
+                if isinstance(product_data, dict):
+                    add_summary = f"Product successfully added based on: '{text_input}'\n\n"
+                    add_summary += f"Product Name: {product_data.get('name', 'N/A')}\n"
+                    add_summary += f"Price: ₹{product_data.get('price', 'N/A')}\n"
+                    add_summary += f"Stock: {product_data.get('stock', 'N/A')}\n"
+                    add_summary += f"SKU: {product_data.get('sku', 'N/A')}\n"
+                    add_summary += f"Description: {product_data.get('description', 'N/A')}\n"
+                    
+                    # Add attributes if available
+                    attributes = product_data.get('attributes', [])
+                    if attributes:
+                        add_summary += "\nAttributes:\n"
+                        for attr in attributes:
+                            add_summary += f"- {attr.get('name', 'N/A')}: {attr.get('value', 'N/A')}\n"
+                else:
+                    add_summary = f"Product addition processed for: '{text_input}'\n\nDetails: {str(product_data)}"
+                
+                return jsonify({
+                    "success": True,
+                    "message": f"Product addition processed successfully",
+                    "text_summary": add_summary,
+                    "processed_text": text_input
+                }), 200
+            else:
+                error_msg = result.get('message', 'Unknown error') if result else 'Failed to add product'
+                return jsonify({
+                    "success": False,
+                    "message": f"Product addition failed",
+                    "text_summary": f"Failed to add product from: '{text_input}'\n\nError: {error_msg}",
+                    "processed_text": text_input
+                }), 400
+        
+        elif action == 'analyze':
+            # Analyze text and provide catalog insights
+            from ecommerce import analyze_catalog_text
+            result = analyze_catalog_text(text_input, page, limit, sort_by, sort_order)
+            
+            if result:
+                # Convert analysis result to text summary
+                if isinstance(result, dict):
+                    analysis_summary = f"Text Analysis Results for: '{text_input}'\n\n"
+                    analysis_summary += f"Analysis: {result.get('analysis', 'No analysis available')}\n\n"
+                    
+                    # Add any insights or recommendations
+                    if result.get('insights'):
+                        analysis_summary += f"Insights: {result.get('insights')}\n\n"
+                    if result.get('recommendations'):
+                        analysis_summary += f"Recommendations: {result.get('recommendations')}\n"
+                else:
+                    analysis_summary = f"Analysis for: '{text_input}'\n\n{str(result)}"
+                
+                return jsonify({
+                    "success": True,
+                    "message": "Text analysis completed successfully",
+                    "text_summary": analysis_summary,
+                    "processed_text": text_input
+                }), 200
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": "Failed to analyze text",
+                    "text_summary": f"Failed to analyze text: '{text_input}'\n\nPlease try again with different text.",
+                    "processed_text": text_input
+                }), 400
+        
+        else:
+            return jsonify({
+                "success": False,
+                "message": f"Unknown action: {action}. Supported actions: summary, ai-summary, search, add-product, analyze"
+            }), 400
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": "Internal server error.",
+            "error": str(e)
+        }), 500
+
+@app.route('/catalog/text-summary', methods=['POST'])
+def text_catalog_summary():
+    """Generate catalog summary based on text input"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'text' not in data:
+            return jsonify({
+                "success": False,
+                "message": "Missing 'text' field in request body"
+            }), 400
+        
+        text_input = data['text']
+        page = data.get('page', 1)
+        limit = data.get('limit', 10)
+        sort_by = data.get('sortBy', 'createdAt')
+        sort_order = data.get('sortOrder', 'desc')
+        
+        if not text_input.strip():
+            return jsonify({
+                "success": False,
+                "message": "Text input cannot be empty"
+            }), 400
+        
+        # Generate AI summary with text context
+        from ecommerce import get_ai_catalog_summary_with_context
+        result = get_ai_catalog_summary_with_context(
+            text_input, page, limit, sort_by, sort_order
         )
         
-        status_code = 200 if result.get('success') else 400
-        return jsonify(result), status_code
+        if result:
+            return jsonify({
+                "success": True,
+                "message": "Text-based catalog summary generated successfully",
+                "data": result,
+                "input_text": text_input
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Failed to generate text-based catalog summary"
+            }), 400
         
     except Exception as e:
         return jsonify({
