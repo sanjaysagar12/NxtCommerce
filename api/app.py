@@ -374,10 +374,17 @@ def process_catalog_text():
             )
             
             if result:
+                # Extract only the text summary part
+                text_summary = ""
+                if isinstance(result, dict):
+                    text_summary = result.get('ai_summary', result.get('text_summary', str(result)))
+                else:
+                    text_summary = str(result)
+                
                 return jsonify({
                     "success": True,
-                    "message": "AI catalog summary generated successfully with text context",
-                    "data": result,
+                    "message": "AI catalog summary generated successfully",
+                    "text_summary": text_summary,
                     "processed_text": text_input
                 }), 200
             else:
@@ -387,32 +394,79 @@ def process_catalog_text():
                 }), 400
         
         elif action == 'search':
-            # Use text as search query
-            result = catalog_ai_api(
-                action="search",
-                query=text_input,
-                page=page,
-                limit=limit
-            )
+            # Use text as search query  
+            from ecommerce import search_products_api
+            result = search_products_api(text_input)
             
-            return jsonify({
-                "success": result.get('success', False),
-                "message": f"Search completed for: '{text_input}'",
-                "data": result.get('data'),
-                "processed_text": text_input
-            }), 200 if result.get('success') else 400
+            if result and result.get('success'):
+                # Generate text summary of search results
+                products = result.get('results', [])
+                if products:
+                    search_summary = f"Found {len(products)} products matching '{text_input}':\n\n"
+                    for i, product in enumerate(products[:5], 1):  # Show first 5 results
+                        search_summary += f"{i}. {product.get('name', 'N/A')}\n"
+                        search_summary += f"   Price: ₹{product.get('price', 'N/A')}\n"
+                        search_summary += f"   Stock: {product.get('stock', 'N/A')}\n"
+                        search_summary += f"   Description: {product.get('description', 'N/A')[:100]}...\n\n"
+                    
+                    if len(products) > 5:
+                        search_summary += f"... and {len(products) - 5} more products."
+                else:
+                    search_summary = f"No products found matching '{text_input}'"
+                
+                return jsonify({
+                    "success": True,
+                    "message": f"Search completed for: '{text_input}'",
+                    "text_summary": search_summary,
+                    "processed_text": text_input
+                }), 200
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": f"Search failed for: '{text_input}'",
+                    "text_summary": f"No products found matching '{text_input}'",
+                    "processed_text": text_input
+                }), 400
         
         elif action == 'add-product':
             # Use text to add a product
             from ecommerce import add_product_api
             result = add_product_api(text_input)
             
-            return jsonify({
-                "success": result.get('success', False),
-                "message": f"Product addition processed for: '{text_input}'",
-                "data": result.get('data'),
-                "processed_text": text_input
-            }), 200 if result.get('success') else 400
+            if result and result.get('success'):
+                # Generate text summary of product addition
+                product_data = result.get('data', {})
+                if isinstance(product_data, dict):
+                    add_summary = f"Product successfully added based on: '{text_input}'\n\n"
+                    add_summary += f"Product Name: {product_data.get('name', 'N/A')}\n"
+                    add_summary += f"Price: ₹{product_data.get('price', 'N/A')}\n"
+                    add_summary += f"Stock: {product_data.get('stock', 'N/A')}\n"
+                    add_summary += f"SKU: {product_data.get('sku', 'N/A')}\n"
+                    add_summary += f"Description: {product_data.get('description', 'N/A')}\n"
+                    
+                    # Add attributes if available
+                    attributes = product_data.get('attributes', [])
+                    if attributes:
+                        add_summary += "\nAttributes:\n"
+                        for attr in attributes:
+                            add_summary += f"- {attr.get('name', 'N/A')}: {attr.get('value', 'N/A')}\n"
+                else:
+                    add_summary = f"Product addition processed for: '{text_input}'\n\nDetails: {str(product_data)}"
+                
+                return jsonify({
+                    "success": True,
+                    "message": f"Product addition processed successfully",
+                    "text_summary": add_summary,
+                    "processed_text": text_input
+                }), 200
+            else:
+                error_msg = result.get('message', 'Unknown error') if result else 'Failed to add product'
+                return jsonify({
+                    "success": False,
+                    "message": f"Product addition failed",
+                    "text_summary": f"Failed to add product from: '{text_input}'\n\nError: {error_msg}",
+                    "processed_text": text_input
+                }), 400
         
         elif action == 'analyze':
             # Analyze text and provide catalog insights
@@ -420,16 +474,31 @@ def process_catalog_text():
             result = analyze_catalog_text(text_input, page, limit, sort_by, sort_order)
             
             if result:
+                # Convert analysis result to text summary
+                if isinstance(result, dict):
+                    analysis_summary = f"Text Analysis Results for: '{text_input}'\n\n"
+                    analysis_summary += f"Analysis: {result.get('analysis', 'No analysis available')}\n\n"
+                    
+                    # Add any insights or recommendations
+                    if result.get('insights'):
+                        analysis_summary += f"Insights: {result.get('insights')}\n\n"
+                    if result.get('recommendations'):
+                        analysis_summary += f"Recommendations: {result.get('recommendations')}\n"
+                else:
+                    analysis_summary = f"Analysis for: '{text_input}'\n\n{str(result)}"
+                
                 return jsonify({
                     "success": True,
                     "message": "Text analysis completed successfully",
-                    "data": result,
+                    "text_summary": analysis_summary,
                     "processed_text": text_input
                 }), 200
             else:
                 return jsonify({
                     "success": False,
-                    "message": "Failed to analyze text"
+                    "message": "Failed to analyze text",
+                    "text_summary": f"Failed to analyze text: '{text_input}'\n\nPlease try again with different text.",
+                    "processed_text": text_input
                 }), 400
         
         else:
